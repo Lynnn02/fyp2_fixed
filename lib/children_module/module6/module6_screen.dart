@@ -1,0 +1,92 @@
+import 'package:flutter/material.dart';
+import '../../widgets/module_button.dart';
+import '../leaderboard/leaderboard_navigation.dart';
+import 'module6_playScreen.dart';
+
+class Module6Screen extends StatelessWidget {
+  final String userId;
+  final String userName;
+
+  const Module6Screen({
+    super.key,
+    required this.userId,
+    required this.userName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          // Background image
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/rainbow.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // Content Column with Logo and Buttons
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Image.asset(
+                'assets/logo.png',
+                width: 200,
+              ),
+              const SizedBox(height: 40),
+              // Play Button
+              ModuleButton(
+                text: 'PLAY',
+                backgroundColor: const Color(0xFF4CAF50), // Green
+                onPressed: () {
+                  Navigator.push(
+                    context, 
+                    MaterialPageRoute(
+                      builder: (context) => Module6PlayScreen(
+                        userId: userId,
+                        userName: userName,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // Leaderboard Button
+              ModuleButton(
+                text: 'LEADERBOARD',
+                backgroundColor: const Color(0xFFFFB74D), // Orange
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => LeaderboardNavigation(
+                        userId: userId,
+                        userName: userName,
+                        ageGroup: 6,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // Settings Button
+              ModuleButton(
+                text: 'SETTING',
+                backgroundColor: const Color(0xFF9E9E9E), // Grey
+                onPressed: () {
+                  Navigator.pushNamed(context, '/settings');
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

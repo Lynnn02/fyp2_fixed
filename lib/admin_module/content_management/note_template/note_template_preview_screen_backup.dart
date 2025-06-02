@@ -1,0 +1,2810 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
+import '../../../models/subject.dart'; // This contains both Subject and Chapter classes
+import '../../../models/note_content.dart';
+import '../../../services/content_service.dart';
+import '../../../services/gemini_service.dart';
+import '../../../widgets/admin_ui_style.dart';
+
+class NoteTemplatePreviewScreen extends StatefulWidget {
+  final Subject subject;
+  final Chapter chapter;
+  final String templateId;
+  final Map<String, dynamic>? noteContent;
+  final int pageLimit;
+
+  const NoteTemplatePreviewScreen({
+    Key? key,
+    required this.subject,
+    required this.chapter,
+    required this.templateId,
+    this.noteContent,
+    this.pageLimit = 10,
+  }) : super(key: key);
+
+  @override
+  State<NoteTemplatePreviewScreen> createState() => _NoteTemplatePreviewScreenState();
+}
+
+class _NoteTemplatePreviewScreenState extends State<NoteTemplatePreviewScreen> {
+  final ContentService _contentService = ContentService();
+  final GeminiService _geminiService = GeminiService();
+  
+  late TextEditingController _titleController;
+  List<NoteContentElement> _elements = [];
+  final Map<String, TextEditingController> _textControllers = {};
+  
+  // Page management
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  final Map<int, bool> _selectedPages = {};
+  
+  // State management
+  bool _isSaving = false;
+  bool _isGeneratingMoreContent = false;
+  bool _isFullyGenerated = false;
+  bool _isReviewMode = false;
+  final Map<String, bool> _approvedElements = {}; // Track approved/rejected elements by ID
+  
+  // Audio playback
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  Duration _duration = Duration.zero;
+  Duration _position = Duration.zero;
+  String? _currentAudioElementId;
+
+  // Image picker instance
+  final ImagePicker _imagePicker = ImagePicker();
+  
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.noteContent != null ? (widget.noteContent!['title'] as String? ?? 'New Note') : 'New Note');
+    _elements = widget.noteContent != null ? _parseElements(widget.noteContent!) : [];
+    
+    // Check if the content is fully generated and ready for review
+    if (widget.noteContent != null) {
+      _isFullyGenerated = widget.noteContent!['isComplete'] == true;
+      _isReviewMode = _isFullyGenerated;
+      
+      // If in review mode, initialize all elements as pending approval
+      if (_isReviewMode) {
+        for (var element in _elements) {
+          _approvedElements[element.id] = false; // Start with all elements pending approval
+        }
+      }
+    } else {
+      // Automatically generate flashcard content if no content is provided
+      _generateFlashcardContent();
+    }
+    
+    // Initialize all pages as selected by default
+    _initializeSelectedPages();
+    
+    // Set up audio player listeners
+    _setupAudioPlayer();
+  }
+  
+  void _initializeSelectedPages() {
+    // Group elements into pages first
+    final pages = _groupElementsIntoPages();
+    
+    // Initialize all pages as selected by default
+    for (int i = 0; i < pages.length; i++) {
+      _selectedPages[i] = true;
+    }
+  }
+  
+  // Set up audio player listeners
+  void _setupAudioPlayer() {
+    _audioPlayer.onDurationChanged.listen((newDuration) {
+      setState(() {
+        _duration = newDuration;
+      });
+    });
+    
+    _audioPlayer.onPositionChanged.listen((newPosition) {
+      setState(() {
+        _position = newPosition;
+      });
+    });
+    
+    _audioPlayer.onPlayerComplete.listen((event) {
+      setState(() {
+        _position = Duration.zero;
+        _isPlaying = false;
+      });
+    });
+  }
+  
+  // Toggle audio playback for audio elements
+  Future<void> _toggleAudioPlayback(AudioElement element) async {
+    if (_isPlaying && _currentAudioElementId == element.id) {
+      // If this audio is already playing, pause it
+      await _audioPlayer.pause();
+      setState(() {
+        _isPlaying = false;
+      });
+    } else {
+      // If another audio is playing, stop it first
+      if (_isPlaying) {
+        await _audioPlayer.stop();
+      }
+      
+      // Play the selected audio
+      try {
+        await _audioPlayer.play(UrlSource(element.audioUrl));
+        setState(() {
+          _isPlaying = true;
+          _currentAudioElementId = element.id;
+        });
+      } catch (e) {
+        // Handle playback error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not play audio: ${e.toString()}'))
+        );
+      }
+    }
+  }
+  
+  // Play a page turn sound effect when swiping between flashcards
+  void _playPageTurnSound() {
+    // This is a simple implementation that could be enhanced with actual sound effects
+    // For now, we'll just use the haptic feedback to simulate a page turn
+    HapticFeedback.mediumImpact();
+    
+    // In a full implementation, you would play an actual sound file:
+    final player = AudioPlayer();
+    player.play(AssetSource('assets/sounds/page_turn.mp3'));
+  }
+  
+  // Format duration for audio player display
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final String minutes = twoDigits(duration.inMinutes.remainder(60));
+    final String seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+  
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    _titleController.dispose();
+    for (final controller in _textControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+  
+  // Parse elements from note content
+  List<NoteContentElement> _parseElements(Map<String, dynamic> content) {
+    final List<dynamic> elementData = content['elements'] as List<dynamic>;
+    final List<NoteContentElement> elements = [];
+    
+    for (final element in elementData) {
+      final String type = element['type'] as String;
+      
+      switch (type) {
+        case 'text':
+          elements.add(TextElement(
+            id: element['id'] as String? ?? const Uuid().v4(),
+            content: element['content'] as String? ?? '',
+            fontSize: element['fontSize'] as double? ?? 16.0,
+            isBold: element['isBold'] as bool? ?? false,
+            isItalic: element['isItalic'] as bool? ?? false,
+            textColor: element['textColor'] as String?,
+            position: element['position'] as int? ?? elements.length,
+            createdAt: element['createdAt'] as Timestamp? ?? Timestamp.now(),
+          ));
+          break;
+        case 'image':
+          elements.add(ImageElement(
+            id: element['id'] as String? ?? const Uuid().v4(),
+            imageUrl: element['imageUrl'] as String? ?? '',
+            caption: element['caption'] as String? ?? '',
+            width: element['width'] as double? ?? 300.0,
+            height: element['height'] as double? ?? 200.0,
+            position: element['position'] as int? ?? elements.length,
+            createdAt: element['createdAt'] as Timestamp? ?? Timestamp.now(),
+          ));
+          break;
+        case 'audio':
+          elements.add(AudioElement(
+            id: element['id'] as String? ?? const Uuid().v4(),
+            audioUrl: element['audioUrl'] as String? ?? '',
+            title: element['title'] as String? ?? 'Audio',
+            filePath: element['filePath'] as String?,
+            duration: element['duration'] != null ? (element['duration'] as double) : null,
+            position: element['position'] as int? ?? elements.length,
+            createdAt: element['createdAt'] as Timestamp? ?? Timestamp.now(),
+          ));
+          break;
+      }
+    }
+    
+    // Sort elements by position
+    elements.sort((a, b) => a.position.compareTo(b.position));
+    
+    return elements;
+  }
+  
+  // Get note type name (simplified to just AI-generated notes)
+  String _getNoteName() {
+    return 'AI-Generated Notes';
+  }
+  
+  // Get note color (simplified to a single color)
+  Color _getNoteColor() {
+    return Colors.blue;
+  }
+  
+  // Get note icon (simplified to a single icon)
+  IconData _getNoteIcon() {
+    return Icons.auto_awesome; // Using the auto_awesome icon to represent AI generation
+  }
+  
+  // Helper method to get flashcard title based on element type
+  String _getFlashcardTitle(NoteContentElement element) {
+    if (element is TextElement) {
+      // For text elements, use the first few words of content
+      String content = element.content.trim();
+      if (content.isNotEmpty) {
+        List<String> words = content.split(' ');
+        if (words.length > 3) {
+          return '${words.take(3).join(' ')}...';
+        }
+        return content;
+      }
+      return 'Text Flashcard';
+    } else if (element is ImageElement) {
+      String caption = element.caption ?? '';
+      if (caption.isNotEmpty) {
+        return caption;
+      }
+      return 'Image Flashcard';
+    } else if (element is AudioElement) {
+      return element.title ?? 'Audio Flashcard';
+    } else {
+      return 'Flashcard';
+    }
+  }
+  
+  // Build page header with approval controls
+  Widget _buildPageHeader(int pageIndex, String pageTitle) {
+    final bool? isApproved = _selectedPages[pageIndex];
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Page title label
+          Text(
+            pageTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          
+          // Approval buttons
+          Row(
+            children: [
+              // Reject button
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _selectedPages[pageIndex] = false;
+                  });
+                },
+                icon: const Icon(Icons.cancel, size: 16),
+                label: const Text('Reject'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: isApproved == false ? Colors.white : Colors.red,
+                  backgroundColor: isApproved == false ? Colors.red : Colors.transparent,
+                  side: const BorderSide(color: Colors.red),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Approve button
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _selectedPages[pageIndex] = true;
+                  });
+                },
+                icon: const Icon(Icons.check_circle, size: 16),
+                label: const Text('Approve'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: isApproved == true ? Colors.white : Colors.green,
+                  backgroundColor: isApproved == true ? Colors.green : Colors.transparent,
+                  side: const BorderSide(color: Colors.green),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Group elements into pages for display
+  List<List<NoteContentElement>> _groupElementsIntoPages() {
+    final List<List<NoteContentElement>> pages = [];
+    
+    // For kid-friendly flashcards, we'll create pages with a maximum of 3 elements per page
+    // This ensures each page isn't overwhelming for children
+    const int maxElementsPerPage = 3;
+    
+    // Sort elements by position
+    final sortedElements = List<NoteContentElement>.from(_elements);
+    sortedElements.sort((a, b) => a.position.compareTo(b.position));
+    
+    // Group elements into pages
+    for (int i = 0; i < sortedElements.length; i += maxElementsPerPage) {
+      final int end = (i + maxElementsPerPage < sortedElements.length) 
+          ? i + maxElementsPerPage 
+          : sortedElements.length;
+      
+      pages.add(sortedElements.sublist(i, end));
+    }
+    
+    // If no pages were created, add an empty page
+    if (pages.isEmpty) {
+      pages.add([]);
+    }
+    
+    return pages;
+  }
+  
+  // Get a fun background color based on page index for kids
+  Color _getPageBackgroundColor(int pageIndex) {
+    // Create a list of kid-friendly colors
+    final List<Color> kidFriendlyColors = [
+      Colors.blue.shade50,
+      Colors.purple.shade50,
+      Colors.green.shade50,
+      Colors.orange.shade50,
+      Colors.pink.shade50,
+      Colors.teal.shade50,
+      Colors.amber.shade50,
+      Colors.indigo.shade50,
+      Colors.lime.shade50,
+      Colors.cyan.shade50,
+    ];
+    
+    // Return a color based on page index (cycle through colors)
+    return kidFriendlyColors[pageIndex % kidFriendlyColors.length];
+  }
+  
+  // Get a theme color based on page index for consistent styling
+  Color _getPageThemeColor(int pageIndex) {
+    // Create a list of vibrant theme colors
+    final List<MaterialColor> themeColors = [
+      Colors.blue,
+      Colors.purple,
+      Colors.green,
+      Colors.orange,
+      Colors.pink,
+      Colors.teal,
+      Colors.amber,
+      Colors.indigo,
+      Colors.lime,
+      Colors.cyan,
+    ];
+    
+    // Return a color based on page index (cycle through colors)
+    return themeColors[pageIndex % themeColors.length];
+  }
+  
+  // Get a fun decoration icon based on page index and content
+  IconData _getDecorationIcon(int pageIndex, List<NoteContentElement> pageElements) {
+    // Check if there are any text elements with specific keywords
+    bool hasAnimalContent = false;
+    bool hasMathContent = false;
+    bool hasLanguageContent = false;
+    bool hasScienceContent = false;
+    
+    for (final element in pageElements) {
+      if (element is TextElement) {
+        final String content = element.content.toLowerCase();
+        if (content.contains('animal') || content.contains('dog') || content.contains('cat')) {
+          hasAnimalContent = true;
+        } else if (content.contains('math') || content.contains('number') || content.contains('count')) {
+          hasMathContent = true;
+        } else if (content.contains('letter') || content.contains('word') || content.contains('read')) {
+          hasLanguageContent = true;
+        } else if (content.contains('science') || content.contains('experiment') || content.contains('nature')) {
+          hasScienceContent = true;
+        }
+      }
+    }
+    
+    // Return an appropriate icon based on content
+    if (hasAnimalContent) {
+      final List<IconData> animalIcons = [Icons.pets, Icons.cruelty_free, Icons.emoji_nature];
+      return animalIcons[pageIndex % animalIcons.length];
+    } else if (hasMathContent) {
+      final List<IconData> mathIcons = [Icons.calculate, Icons.bar_chart, Icons.add_circle];
+      return mathIcons[pageIndex % mathIcons.length];
+    } else if (hasLanguageContent) {
+      final List<IconData> languageIcons = [Icons.menu_book, Icons.abc, Icons.text_fields];
+      return languageIcons[pageIndex % languageIcons.length];
+    } else if (hasScienceContent) {
+      final List<IconData> scienceIcons = [Icons.science, Icons.biotech, Icons.psychology];
+      return scienceIcons[pageIndex % scienceIcons.length];
+    } else {
+      // Default fun icons
+      final List<IconData> defaultIcons = [
+        Icons.star, Icons.favorite, Icons.emoji_emotions, 
+        Icons.lightbulb, Icons.auto_awesome, Icons.celebration,
+        Icons.school, Icons.palette, Icons.emoji_events
+      ];
+      return defaultIcons[pageIndex % defaultIcons.length];
+    }
+  }
+  
+  // Check if the note exceeds the page limit
+  bool _exceedsPageLimit(int totalPages) {
+    return totalPages > widget.pageLimit;
+  }
+  
+  // Get page count message
+  String _getPageCountMessage(int totalPages) {
+    if (totalPages <= widget.pageLimit) {
+      return 'Page $totalPages of $totalPages';
+    } else {
+      return 'Page $totalPages of ${widget.pageLimit} (Limit Exceeded)';
+    }
+  }
+  
+  // Get max pages to show
+  int _getMaxPagesToShow() {
+    return widget.pageLimit;
+  }
+  
+  // Play audio
+  Future<void> _playAudio(AudioElement element) async {
+    try {
+      await _audioPlayer.play(UrlSource(element.audioUrl));
+        
+      setState(() {
+        _isPlaying = true;
+        _currentAudioElementId = element.id;
+        _position = Duration.zero;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error playing audio: ${e.toString()}')),
+      );
+    }
+  }
+  
+  // Pick image from gallery or camera
+  Future<void> _pickImage(ImageElement element) async {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _getImage(ImageSource.gallery, element);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _getImage(ImageSource.camera, element);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  // Get image from source
+  Future<void> _getImage(ImageSource source, ImageElement element) async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 80,
+      );
+      
+      if (pickedFile != null) {
+        // Show loading indicator
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Uploading image...')),
+        );
+        
+        // Upload image to Firebase Storage
+        final String? imageUrl = await _contentService.uploadImage(
+          File(pickedFile.path),
+          'notes/${widget.subject.id}/${widget.chapter.id}/${element.id}',
+        );
+        
+        if (imageUrl != null && mounted) {
+          setState(() {
+            // Replace the element with updated image URL
+            final int index = _elements.indexWhere((e) => e.id == element.id);
+            if (index != -1) {
+              _elements[index] = ImageElement(
+                id: element.id,
+                imageUrl: imageUrl,
+                caption: element.caption,
+                position: element.position,
+                createdAt: element.createdAt,
+                width: element.width,
+                height: element.height,
+              );
+            }
+          });
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image updated successfully')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: ${e.toString()}')),
+      );
+    }
+  }
+  
+  // Generate more content
+  Future<void> _generateMoreContent() async {
+    // Call the flashcard content generation method
+    await _generateFlashcardContent();
+  }
+  
+  // Helper methods for age-based content generation
+  int _getAgeBasedPageCount(int age) {
+    switch (age) {
+      case 4:
+        return 10; // 10 pages for age 4
+      case 5:
+        return 15; // 15 pages for age 5
+      case 6:
+        return 20; // 20 pages for age 6
+      default:
+        return 10; // Default to 10 pages
+    }
+  }
+  
+  double _getAgeBasedFontSize(int age) {
+    switch (age) {
+      case 4:
+        return 24.0; // Larger font for age 4
+      case 5:
+        return 20.0; // Medium font for age 5
+      case 6:
+        return 18.0; // Smaller font for age 6
+      default:
+        return 20.0; // Default font size
+    }
+  }
+  
+  double _getAgeBasedImageRatio(int age) {
+    switch (age) {
+      case 4:
+        return 0.7; // 70% images for age 4
+      case 5:
+        return 0.5; // 50% images for age 5
+      case 6:
+        return 0.4; // 40% images for age 6
+      default:
+        return 0.5; // Default image ratio
+    }
+  }
+  
+  // Get the appropriate note style based on age and subject
+  String _getAgeAppropriateStyle(int age, String subject) {
+    // For younger kids (age 4), use more visual and simple content
+    if (age == 4) {
+      if (subject.toLowerCase().contains('math')) {
+        return 'visual_counting'; // Visual counting style for math
+      } else if (subject.toLowerCase().contains('language') || subject.toLowerCase().contains('english')) {
+        return 'picture_words'; // Picture words for language
+      } else {
+        return 'colorful_simple'; // Colorful and simple for other subjects
+      }
+    }
+    // For middle age (age 5)
+    else if (age == 5) {
+      if (subject.toLowerCase().contains('science')) {
+        return 'discovery'; // Discovery style for science
+      } else if (subject.toLowerCase().contains('math')) {
+        return 'pattern_based'; // Pattern-based for math
+      } else {
+        return 'balanced_visual'; // Balanced visual content for other subjects
+      }
+    }
+    // For older kids (age 6)
+    else {
+      if (subject.toLowerCase().contains('history') || subject.toLowerCase().contains('social')) {
+        return 'storytelling'; // Storytelling for history/social studies
+      } else if (subject.toLowerCase().contains('science')) {
+        return 'exploratory'; // Exploratory for science
+      } else {
+        return 'concept_focused'; // Concept-focused for other subjects
+      }
+    }
+  }
+  
+  // Get color based on age group
+  Color _getAgeColor(int age) {
+    switch (age) {
+      case 4:
+        return Colors.purple;
+      case 5:
+        return Colors.blue;
+      case 6:
+        return Colors.green;
+      default:
+        return Colors.orange;
+    }
+  }
+  
+  // Convert color string to Color object
+  Color _getColorFromString(String? colorString) {
+    if (colorString == null || colorString.isEmpty) {
+      return Colors.black;
+    }
+    
+    try {
+      // Handle hex color format with # prefix
+      if (colorString.startsWith('#')) {
+        colorString = colorString.substring(1);
+        // Add FF for opacity if the string is only 6 characters (RGB)
+        if (colorString.length == 6) {
+          colorString = 'FF$colorString';
+        }
+        return Color(int.parse(colorString, radix: 16));
+      }
+      // Handle direct integer value
+      return Color(int.parse(colorString));
+    } catch (e) {
+      return Colors.black;
+    }
+  }
+  
+  // Publish the note
+  Future<void> _publishNote() async {
+    // Validate the title is not empty
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a title for the note')),
+      );
+      return;
+    }
+    
+    // In review mode, validate that all pages have been reviewed
+    if (_isReviewMode) {
+      final pages = _groupElementsIntoPages();
+      bool allPagesReviewed = true;
+      
+      for (int i = 0; i < pages.length; i++) {
+        if (!_selectedPages.containsKey(i)) {
+          allPagesReviewed = false;
+          break;
+        }
+      }
+      
+      if (!allPagesReviewed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please review all flashcards before publishing')),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      // Get pages and filter out unselected pages
+      final List<List<NoteContentElement>> pages = _groupElementsIntoPages();
+      List<NoteContentElement> selectedElements = [];
+      
+      // Only include elements from selected pages
+      for (int i = 0; i < pages.length; i++) {
+        if (_selectedPages[i] ?? true) {
+          selectedElements.addAll(pages[i]);
+        }
+      }
+      
+      // Create a new list with properly positioned elements
+      final List<NoteContentElement> positionedElements = [];
+      
+      // Process each selected element and create a new one with the correct position
+      for (int i = 0; i < selectedElements.length; i++) {
+        final element = selectedElements[i];
+        
+        if (element is TextElement) {
+          positionedElements.add(TextElement(
+            id: element.id,
+            content: element.content,
+            fontSize: element.fontSize,
+            isBold: element.isBold,
+            isItalic: element.isItalic,
+            textColor: element.textColor,
+            position: i,
+            createdAt: element.createdAt,
+          ));
+        } else if (element is ImageElement) {
+          positionedElements.add(ImageElement(
+            id: element.id,
+            imageUrl: element.imageUrl,
+            caption: element.caption,
+            width: element.width,
+            height: element.height,
+            position: i,
+            createdAt: element.createdAt,
+          ));
+        } else if (element is AudioElement) {
+          positionedElements.add(AudioElement(
+            id: element.id,
+            position: i,
+            createdAt: element.createdAt,
+            audioUrl: element.audioUrl,
+            title: element.title,
+            filePath: element.filePath,
+            duration: element.duration,
+          ));
+        }
+      }
+      
+      // Replace the original list with the positioned elements
+      selectedElements = positionedElements;
+      
+      // Prepare the elements for saving
+      final List<Map<String, dynamic>> elementData = [];
+      
+      for (final element in selectedElements) {
+        if (element is TextElement) {
+          elementData.add({
+            'id': element.id,
+            'type': 'text',
+            'content': element.content,
+            'fontSize': element.fontSize,
+            'isBold': element.isBold,
+            'isItalic': element.isItalic,
+            'textColor': element.textColor,
+            'position': element.position,
+            'createdAt': element.createdAt,
+          });
+        } else if (element is ImageElement) {
+          elementData.add({
+            'id': element.id,
+            'type': 'image',
+            'imageUrl': element.imageUrl,
+            'caption': element.caption,
+            'width': element.width,
+            'height': element.height,
+            'position': element.position,
+            'createdAt': element.createdAt,
+          });
+        } else if (element is AudioElement) {
+          elementData.add({
+            'id': element.id,
+            'type': 'audio',
+            'position': element.position,
+            'createdAt': element.createdAt,
+            'audioUrl': element.audioUrl,
+            'title': element.title,
+            'filePath': element.filePath,
+            'duration': element.duration, // Duration is already stored as a double
+          });
+        }
+      }
+
+      // Create the note object with only the selected elements
+      final note = Note(
+        title: _titleController.text,
+        elements: selectedElements,
+        isDraft: false,
+        createdAt: Timestamp.now(),
+      );
+
+      // Save the note to the chapter
+      await _contentService.saveNoteToChapter(
+        widget.subject.id,
+        widget.chapter.id,
+        note,
+      );
+      
+      if (mounted) {
+        // Show success message
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Success'),
+              content: const Text('Note published successfully!'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+        
+        // Navigate back to the previous screen
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error publishing note: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+  // Helper method to build element type indicator for statistics
+  Widget _buildElementTypeIndicator(String type, int count, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(type, style: TextStyle(color: color)),
+        Text('$count', style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  // Build the bottom action bar with review controls
+  Widget _buildBottomActionBar() {
+    // Count approved, rejected, and pending pages
+    int approvedPages = 0;
+    int rejectedPages = 0;
+    int pendingPages = 0;
+    int totalPages = _groupElementsIntoPages().length;
+    
+    for (final entry in _selectedPages.entries) {
+      if (entry.value == true) {
+        approvedPages++;
+      } else if (entry.value == false) {
+        rejectedPages++;
+      } else {
+        pendingPages++;
+      }
+    }
+    
+    // Ensure all pages are accounted for
+    pendingPages = totalPages - approvedPages - rejectedPages;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Progress indicators
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        const SizedBox(width: 4),
+                        Text('Approved: $approvedPages', style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: totalPages == 0 ? 0 : approvedPages / totalPages,
+                      backgroundColor: Colors.grey.shade200,
+                      color: Colors.green,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.pending, color: Colors.orange, size: 16),
+                        const SizedBox(width: 4),
+                        Text('Pending: $pendingPages', style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: totalPages == 0 ? 0 : pendingPages / totalPages,
+                      backgroundColor: Colors.grey.shade200,
+                      color: Colors.orange,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.cancel, color: Colors.red, size: 16),
+                        const SizedBox(width: 4),
+                        Text('Rejected: $rejectedPages', style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: totalPages == 0 ? 0 : rejectedPages / totalPages,
+                      backgroundColor: Colors.grey.shade200,
+                      color: Colors.red,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Action buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Navigation
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _currentPage > 0
+                        ? () {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        : null,
+                    icon: const Icon(Icons.arrow_back),
+                    color: _getNoteColor(),
+                    disabledColor: Colors.grey.shade300,
+                  ),
+                  Text('Page ${_currentPage + 1}'),
+                  IconButton(
+                    onPressed: _currentPage < _groupElementsIntoPages().length - 1
+                        ? () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        : null,
+                    icon: const Icon(Icons.arrow_forward),
+                    color: _getNoteColor(),
+                    disabledColor: Colors.grey.shade300,
+                  ),
+                ],
+              ),
+              
+              // Approve all / Reject all buttons
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                                // Mark current page as rejected
+                        _selectedPages[_currentPage] = false;
+                      });
+                    },
+                    icon: const Icon(Icons.cancel, color: Colors.red),
+                    label: const Text('Reject All'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        // Mark current page as approved
+                        _selectedPages[_currentPage] = true;
+                      });
+                    },
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text('Approve All'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Publish button
+              ElevatedButton.icon(
+                onPressed: pendingPages > 0 ? null : () => _publishNote(),
+                icon: const Icon(Icons.publish),
+                label: Text(pendingPages > 0 ? 'Review All Flashcards First' : 'Publish Note'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _getNoteColor(),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Convert result from GeminiService to NoteContentElements
+  List<NoteContentElement> _convertToNoteElements(Map<String, dynamic>? result) {
+    if (result == null) return [];
+    
+    // Check if the result contains elements array
+    if (!result.containsKey('elements') || result['elements'] == null) {
+      return [];
+    }
+    
+    final List<dynamic> elementsList = result['elements'] as List<dynamic>;
+    final List<NoteContentElement> noteElements = [];
+    int position = 0;
+    
+    for (final element in elementsList) {
+      if (element is! Map<String, dynamic>) continue;
+      
+      // Process each element based on its type
+      if (element['type'] == 'text') {
+        noteElements.add(TextElement(
+          id: const Uuid().v4(),
+          position: position++,
+          createdAt: Timestamp.now(),
+          content: element['content'] ?? '',
+          isBold: element['isBold'] ?? false,
+          isItalic: element['isItalic'] ?? false,
+          fontSize: element['fontSize'] ?? 16.0,
+          textColor: element['textColor'] ?? '#000000',
+        ));
+      } else if (element['type'] == 'image') {
+        noteElements.add(ImageElement(
+          id: const Uuid().v4(),
+          position: position++,
+          createdAt: Timestamp.now(),
+          imageUrl: element['imageUrl'] ?? '',
+          caption: element['caption'] ?? '',
+          width: element['width'] ?? 300.0,
+          height: element['height'] ?? 200.0,
+        ));
+      } else if (element['type'] == 'audio') {
+        noteElements.add(AudioElement(
+          id: const Uuid().v4(),
+          position: position++,
+          createdAt: Timestamp.now(),
+          audioUrl: element['audioUrl'] ?? '',
+          title: element['title'] ?? '',
+        ));
+      } else if (element['type'] == 'interactive') {
+        // Convert interactive elements to text elements for flashcards
+        noteElements.add(TextElement(
+          id: const Uuid().v4(),
+          position: position++,
+          createdAt: Timestamp.now(),
+          content: '🎮 Activity: ${element['content'] ?? ''}',
+          isBold: true,
+          isItalic: false,
+          textColor: '#4CAF50',
+        ));
+      }
+    }
+    
+    return noteElements;
+  }
+  
+  // Generate flashcard content automatically based on subject and age
+  Future<void> _generateFlashcardContent() async {
+    if (_isGeneratingMoreContent) return;
+    
+    setState(() {
+      _isGeneratingMoreContent = true;
+    });
+    
+    try {
+      // Get age-specific parameters
+      final int age = widget.subject.moduleId;
+      final int pageCount = _getAgeBasedPageCount(age);
+      final double fontSize = _getAgeBasedFontSize(age);
+      final double imageRatio = _getAgeBasedImageRatio(age);
+      
+      // Get the appropriate style based on age and subject
+      final String contentStyle = _getAgeAppropriateStyle(age, widget.subject.name);
+      
+      // Generate content based on age, subject, chapter, and appropriate style
+      final Map<String, dynamic>? contentResult = await _geminiService.generateNoteContent(
+        subject: widget.subject.name,
+        chapter: widget.chapter.name,
+        templateType: contentStyle, // Use the age and subject appropriate style
+        age: age,
+        pageCount: pageCount,
+      );
+      
+      // Check if content generation was successful
+      if (contentResult == null) {
+        throw Exception('Failed to generate content');
+      }
+      
+      // Create a new map to avoid modifying the original
+      final Map<String, dynamic> generatedContent = Map<String, dynamic>.from(contentResult);
+      
+      // Add additional metadata to the content
+      generatedContent['fontSize'] = fontSize;
+      generatedContent['imageRatio'] = imageRatio;
+      generatedContent['includeTracingGuides'] = false; // No tracing guides as requested
+      generatedContent['straightforwardContent'] = true; // Make content straightforward and engaging
+      
+      // Convert the result to note elements
+      final List<NoteContentElement> newElements = _convertToNoteElements(generatedContent);
+      
+      // Add new elements to the existing list
+      setState(() {
+        _elements.addAll(newElements);
+        _isGeneratingMoreContent = false;
+        
+        // Initialize text controllers for any new text elements
+        for (final element in newElements) {
+          if (element is TextElement) {
+            _textControllers[element.id] = TextEditingController(text: element.content);
+          }
+        }
+        
+        // Update the title based on the subject and chapter
+        _titleController.text = '${widget.subject.name}: ${widget.chapter.name} Flashcards';
+        
+        // Update selected pages
+        _initializeSelectedPages();
+      });
+    } catch (e) {
+      // Handle error
+      setState(() {
+        _isGeneratingMoreContent = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating flashcard content: $e')),
+        );
+      }
+    }
+  }
+  
+  // Build the standard action bar for editing mode
+  Widget _buildStandardActionBar(int totalPages) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Save button
+          ElevatedButton.icon(
+            onPressed: _isSaving ? null : () => _publishNote(),
+            icon: _isSaving
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.save),
+            label: Text(_isSaving ? 'Saving...' : 'Save Flashcards'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _getNoteColor(),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Build flashcard content for all screen sizes
+  Widget _buildFlashcardContent(List<NoteContentElement> pageElements) {
+    // Handle empty pages
+    if (pageElements.isEmpty) {
+      return const Center(
+        child: Text(
+          'No content available for this flashcard.',
+          style: TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: Colors.grey),
+        ),
+      );
+    }
+    
+    // For flashcards, we want to display all elements in a vertical layout
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: pageElements.map((element) {
+        // Display each element based on its type
+        if (element is TextElement) {
+          // Text element
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              element.content,
+              style: TextStyle(
+                fontSize: element.fontSize,
+                fontWeight: element.isBold ? FontWeight.bold : FontWeight.normal,
+                fontStyle: element.isItalic ? FontStyle.italic : FontStyle.normal,
+                color: _getColorFromString(element.textColor),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          );
+        } else if (element is ImageElement) {
+          // Image element
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    element.imageUrl,
+                    width: element.width,
+                    height: element.height,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: element.width,
+                      height: element.height,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
+                    ),
+                  ),
+                ),
+                if (element.caption != null && element.caption!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      element.caption ?? '',
+                      style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        } else if (element is AudioElement) {
+          // Audio element
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              children: [
+                Text(
+                  element.title ?? 'Audio',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _isPlaying && _currentAudioElementId == element.id ? Icons.pause : Icons.play_arrow,
+                        color: _getNoteColor(),
+                      ),
+                      onPressed: () => _toggleAudioPlayback(element),
+                    ),
+                    if (_isPlaying && _currentAudioElementId == element.id)
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Slider(
+                              value: _position.inSeconds.toDouble(),
+                              min: 0,
+                              max: _duration.inSeconds.toDouble(),
+                              onChanged: (value) {
+                                _audioPlayer.seek(Duration(seconds: value.toInt()));
+                              },
+                              activeColor: _getNoteColor(),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(_formatDuration(_position)),
+                                  Text(_formatDuration(_duration)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      }).toList(),
+    );
+  }
+  
+  // Build desktop layout (for large screens) - flashcard style
+  Widget _buildDesktopLayout(int pageIndex, List<NoteContentElement> pageElements, int totalPages, bool exceededLimit) {
+    // Handle empty pages
+    String elementType = 'Page';
+    if (pageElements.isNotEmpty) {
+      final NoteContentElement element = pageElements.first;
+      if (element is TextElement) {
+        elementType = 'Text';
+      } else if (element is ImageElement) {
+        elementType = 'Image';
+      } else if (element is AudioElement) {
+        elementType = 'Audio';
+      }
+    }
+    
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Main content area (70%)
+        Expanded(
+          flex: 7,
+          child: Card(
+            margin: const EdgeInsets.all(16),
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                // Page header with approval controls in review mode
+                if (_isReviewMode)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildPageHeader(pageIndex, 'Flashcard ${pageIndex + 1}'),
+                  ),
+                
+                // Flashcard content
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: _buildFlashcardElement(element),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Side panel with page controls and metadata (30%)
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Page info card
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Flashcard ${pageIndex + 1} of $totalPages',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _getNoteColor(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Page inclusion checkbox
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedPages[pageIndex] ?? true,
+                            activeColor: _getNoteColor(),
+                            onChanged: _isReviewMode ? null : (value) {
+                              setState(() {
+                                _selectedPages[pageIndex] = value ?? true;
+                              });
+                            },
+                          ),
+                          const Text('Include this flashcard'),
+                        ],
+                      ),
+                      // Age-appropriate indicator
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getAgeColor(widget.subject.moduleId).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.child_care,
+                              size: 16,
+                              color: _getAgeColor(widget.subject.moduleId),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Age ${widget.subject.moduleId}+',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _getAgeColor(widget.subject.moduleId),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Element type indicator
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getElementColor(elementType).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getElementIcon(elementType),
+                              size: 16,
+                              color: _getElementColor(elementType),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              elementType,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _getElementColor(elementType),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Helper method to get element color
+  Color _getElementColor(String elementType) {
+    switch (elementType) {
+      case 'Text':
+        return Colors.blue;
+      case 'Image':
+        return Colors.green;
+      case 'Audio':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+  
+  // Helper method to get element icon
+  IconData _getElementIcon(String elementType) {
+    switch (elementType) {
+      case 'Text':
+        return Icons.text_fields;
+      case 'Image':
+        return Icons.image;
+      case 'Audio':
+        return Icons.audiotrack;
+      default:
+        return Icons.help_outline;
+    }
+  }
+  
+  // Build a flashcard element
+  Widget _buildFlashcardElement(NoteContentElement element) {
+    if (element is TextElement) {
+      return _buildFlashcardTextElement(element);
+    } else if (element is ImageElement) {
+      return _buildFlashcardImageElement(element);
+    } else if (element is AudioElement) {
+      return _buildFlashcardAudioElement(element);
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
+  
+  // Build a flashcard text element
+  Widget _buildFlashcardTextElement(TextElement element) {
+    // Get or create a text controller for this element
+    if (!_textControllers.containsKey(element.id)) {
+      _textControllers[element.id] = TextEditingController(text: element.content);
+    }
+    
+    return TextField(
+      controller: _textControllers[element.id],
+      maxLines: null,
+      decoration: const InputDecoration(
+        border: InputBorder.none,
+        hintText: 'Enter text content',
+      ),
+      enabled: !_isReviewMode, // Disable editing in review mode
+      style: TextStyle(
+        fontSize: element.fontSize,
+        fontWeight: element.isBold ? FontWeight.bold : FontWeight.normal,
+        fontStyle: element.isItalic ? FontStyle.italic : FontStyle.normal,
+        color: element.textColor != null ? _getColorFromString(element.textColor!) : null,
+      ),
+      onChanged: (value) {
+        // Update the element content
+        setState(() {
+          final int index = _elements.indexWhere((e) => e.id == element.id);
+          if (index != -1) {
+            _elements[index] = TextElement(
+              id: element.id,
+              content: value,
+              fontSize: element.fontSize,
+              isBold: element.isBold,
+              isItalic: element.isItalic,
+              textColor: element.textColor,
+              position: element.position,
+              createdAt: element.createdAt,
+            );
+          }
+        });
+      },
+    );
+  }
+  
+  // Build a flashcard image element
+  Widget _buildFlashcardImageElement(ImageElement element) {
+    return GestureDetector(
+      onTap: _isReviewMode ? null : () => _pickImage(element),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxHeight: 400),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image
+            Expanded(
+              child: element.imageUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        element.imageUrl,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error, color: Colors.red),
+                                const SizedBox(height: 8),
+                                Text('Error loading image: $error'),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.image, size: 48, color: Colors.grey),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isReviewMode ? 'No image available' : 'Tap to add image',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            
+            // Caption
+            if (element.caption != null && element.caption!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  element.caption ?? '',
+                  style: const TextStyle(fontStyle: FontStyle.italic),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Build a flashcard audio element
+  Widget _buildFlashcardAudioElement(AudioElement element) {
+    final bool isCurrentlyPlaying = _isPlaying && _currentAudioElementId == element.id;
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Audio player
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              // Title
+              Text(
+                element.title ?? 'Audio',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 16),
+              
+              // Play/pause button
+              IconButton(
+                iconSize: 64,
+                icon: Icon(isCurrentlyPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                onPressed: element.audioUrl.isNotEmpty ? () => _toggleAudioPlayback(element) : null,
+                color: _getNoteColor(),
+              ),
+              
+              // Progress slider
+              if (isCurrentlyPlaying)
+                Slider(
+                  value: _position.inSeconds.toDouble(),
+                  max: _duration.inSeconds.toDouble(),
+                  onChanged: (value) {
+                    _audioPlayer.seek(Duration(seconds: value.toInt()));
+                  },
+                )
+              else
+                const SizedBox(height: 24),
+              
+              // Duration display
+              if (isCurrentlyPlaying)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_formatDuration(_position)),
+                    Text(_formatDuration(_duration)),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Build tablet layout (for medium screens) - flashcard style
+  Widget _buildTabletLayout(int pageIndex, List<NoteContentElement> pageElements, int totalPages, bool exceededLimit) {
+    // With flashcard style, we should have exactly one element per page
+    final NoteContentElement element = pageElements.first;
+    String elementType = element is TextElement ? 'Text' : (element is ImageElement ? 'Image' : 'Audio');
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Page header with controls
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _getNoteColor().withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Flashcard ${pageIndex + 1} of $totalPages',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _getNoteColor(),
+                ),
+              ),
+              // Page inclusion checkbox
+              Row(
+                children: [
+                  const Text('Include'),
+                  Checkbox(
+                    value: _selectedPages[pageIndex] ?? true,
+                    activeColor: _getNoteColor(),
+                    onChanged: _isReviewMode ? null : (value) {
+                      setState(() {
+                        _selectedPages[pageIndex] = value ?? true;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        // Main content
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.all(8),
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                // Page header with approval controls in review mode
+                if (_isReviewMode)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildPageHeader(pageIndex, 'Flashcard ${pageIndex + 1}'),
+                  ),
+                
+                // Flashcard content
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Center(
+                      child: _buildFlashcardElement(element),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Build mobile layout (for small screens) - flashcard style with kid-friendly design
+  Widget _buildMobileLayout(int pageIndex, List<NoteContentElement> pageElements, int totalPages, bool exceededLimit) {
+    // With flashcard style, we should have exactly one element per page
+    final NoteContentElement element = pageElements.first;
+    String elementType = element is TextElement ? 'Text' : (element is ImageElement ? 'Image' : 'Audio');
+    
+    // Get age-appropriate colors based on age group
+    final Color primaryColor = _getAgeColor(widget.subject.moduleId);
+    final Color backgroundColor = primaryColor.withOpacity(0.1);
+    
+    return Column(
+      children: [
+        // Page header with controls - more colorful for kids
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Flashcard ${pageIndex + 1} of $totalPages',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: _getNoteColor(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Main content
+        Expanded(
+          child: Card(
+            margin: const EdgeInsets.all(16),
+            elevation: 6,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            color: Colors.white,
+            child: Stack(
+              children: [
+                // Background pattern for visual interest (subtle)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white,
+                          backgroundColor,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Content layout
+                Column(
+                  children: [
+                    // Page header with approval controls in review mode
+                    if (_isReviewMode)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(24),
+                            topRight: Radius.circular(24),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: _buildPageHeader(pageIndex, 'Flashcard ${pageIndex + 1}'),
+                      ),
+                    
+                    // Flashcard content with enhanced styling
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Center(
+                          child: _buildKidFriendlyFlashcardElement(element, primaryColor),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Build the main page content
+  Widget _buildPageContent(int pageIndex, List<NoteContentElement> pageElements, int totalPages, bool exceededLimit) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Warning if page limit exceeded
+          if (exceededLimit && pageIndex == 0)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.shade700),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.amber.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This note exceeds the recommended page limit of ${widget.pageLimit}. Consider removing some content.',
+                      style: TextStyle(color: Colors.amber.shade800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // Page elements
+          ...pageElements.map((element) {
+            // Build element based on type
+            if (element is TextElement) {
+              return _buildTextElement(element);
+            } else if (element is ImageElement) {
+              return _buildImageElement(element);
+            } else if (element is AudioElement) {
+              return _buildAudioElement(element);
+            } else {
+              return const SizedBox.shrink();
+            }
+          }).toList(),
+        ],
+      ),
+    );
+  }
+  
+  // Build text element
+  Widget _buildTextElement(TextElement element) {
+    // Get or create a text controller for this element
+    if (!_textControllers.containsKey(element.id)) {
+      _textControllers[element.id] = TextEditingController(text: element.content);
+    }
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // No element header in flashcard style - approval is at page level
+            
+            // Text content
+            TextField(
+              controller: _textControllers[element.id],
+              maxLines: null,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Enter text content',
+              ),
+              enabled: !_isReviewMode, // Disable editing in review mode
+              style: TextStyle(
+                fontSize: element.fontSize,
+                fontWeight: element.isBold ? FontWeight.bold : FontWeight.normal,
+                fontStyle: element.isItalic ? FontStyle.italic : FontStyle.normal,
+                color: element.textColor != null ? _getColorFromString(element.textColor!) : null,
+              ),
+              onChanged: (value) {
+                // Update the element content
+                setState(() {
+                  final int index = _elements.indexWhere((e) => e.id == element.id);
+                  if (index != -1) {
+                    _elements[index] = TextElement(
+                      id: element.id,
+                      content: value,
+                      fontSize: element.fontSize,
+                      isBold: element.isBold,
+                      isItalic: element.isItalic,
+                      textColor: element.textColor,
+                      position: element.position,
+                      createdAt: element.createdAt,
+                    );
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Build image element
+  Widget _buildImageElement(ImageElement element) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // No element header in flashcard style - approval is at page level
+            
+            // Image content
+            GestureDetector(
+              onTap: _isReviewMode ? null : () => _pickImage(element),
+              child: Container(
+                width: element.width,
+                height: element.height,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: element.imageUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          element.imageUrl,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.error, color: Colors.red),
+                                  const SizedBox(height: 8),
+                                  Text('Error loading image: $error'),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    : Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.image, size: 48, color: Colors.grey),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isReviewMode ? 'No image available' : 'Tap to add image',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+            
+            // Caption
+            if (element.caption != null && element.caption!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  element.caption ?? '',
+                  style: const TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Build audio element
+  Widget _buildAudioElement(AudioElement element) {
+    final bool isCurrentlyPlaying = _isPlaying && _currentAudioElementId == element.id;
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // No element header in flashcard style - approval is at page level
+            
+            // Audio player
+            Row(
+              children: [
+                // Play/pause button
+                IconButton(
+                  icon: Icon(isCurrentlyPlaying ? Icons.pause : Icons.play_arrow),
+                  onPressed: element.audioUrl.isNotEmpty ? () => _toggleAudioPlayback(element) : null,
+                  color: _getNoteColor(),
+                ),
+                
+                // Progress bar
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        element.title ?? 'Audio',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      
+                      // Progress slider
+                      if (isCurrentlyPlaying)
+                        Slider(
+                          value: _position.inSeconds.toDouble(),
+                          max: _duration.inSeconds.toDouble(),
+                          onChanged: (value) {
+                            _audioPlayer.seek(Duration(seconds: value.toInt()));
+                          },
+                        )
+                      else
+                        const SizedBox(height: 24),
+                      
+                      // Duration display
+                      if (isCurrentlyPlaying)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(_formatDuration(_position)),
+                            Text(_formatDuration(_duration)),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Build kid-friendly flashcard element with enhanced visuals and AI-generated images
+  Widget _buildKidFriendlyFlashcardElement(NoteContentElement element, Color themeColor) {
+    // Get age from subject moduleId for age-appropriate content
+    final int age = widget.subject.moduleId;
+    
+    if (element is TextElement) {
+      return _buildKidFriendlyTextElement(element, themeColor);
+    } else if (element is ImageElement) {
+      return _buildKidFriendlyImageElement(element, themeColor);
+    } else if (element is AudioElement) {
+      return _buildKidFriendlyAudioElement(element, themeColor);
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
+  
+  // Build kid-friendly text element with enhanced visuals
+  Widget _buildKidFriendlyTextElement(TextElement element, Color themeColor) {
+    // Get or create a text controller for this element
+    if (!_textControllers.containsKey(element.id)) {
+      _textControllers[element.id] = TextEditingController(text: element.content);
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeColor.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Fun icon for text
+          Icon(
+            Icons.menu_book,
+            color: themeColor,
+            size: 40,
+          ),
+          const SizedBox(height: 16),
+          
+          // Text content with enhanced styling
+          TextField(
+            controller: _textControllers[element.id],
+            maxLines: null,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: 'Enter text content',
+              hintStyle: TextStyle(color: Colors.grey.shade400),
+            ),
+            enabled: !_isReviewMode, // Disable editing in review mode
+            style: TextStyle(
+              fontSize: (element.fontSize ?? 16.0) + 2, // Slightly larger for better readability
+              fontWeight: element.isBold ? FontWeight.bold : FontWeight.normal,
+              fontStyle: element.isItalic ? FontStyle.italic : FontStyle.normal,
+              color: element.textColor != null ? _getColorFromString(element.textColor!) : themeColor,
+              height: 1.5, // Better line spacing for readability
+            ),
+            onChanged: (value) {
+              // Update the element content
+              setState(() {
+                final int index = _elements.indexWhere((e) => e.id == element.id);
+                if (index != -1) {
+                  _elements[index] = TextElement(
+                    id: element.id,
+                    content: value,
+                    fontSize: element.fontSize,
+                    isBold: element.isBold,
+                    isItalic: element.isItalic,
+                    textColor: element.textColor,
+                    position: element.position,
+                    createdAt: element.createdAt,
+                  );
+                }
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Build kid-friendly image element with AI-generated images
+  Widget _buildKidFriendlyImageElement(ImageElement element, Color themeColor) {
+    // Generate a deterministic but unique image URL based on content
+    String getAIImageUrl(String caption, int age) {
+      // Create a hash from the caption to ensure consistent images for the same content
+      final String contentHash = caption.hashCode.toString();
+      
+      // Use Unsplash Source for reliable, high-quality images
+      // This service provides random but relevant images based on search terms
+      final String baseUrl = 'https://source.unsplash.com/featured/600x400';
+      
+      // Create query parameters based on caption and age
+      String query = '?$contentHash';
+      
+      // Add age-appropriate keywords based on the child's age
+      if (age <= 4) {
+        query += '&children,colorful,simple,cartoon';
+      } else if (age <= 5) {
+        query += '&children,educational,colorful';
+      } else {
+        query += '&educational,learning';
+      }
+      
+      // Add subject-specific terms if available in the caption
+      if (caption.toLowerCase().contains('animal')) {
+        query += ',animals,nature';
+      } else if (caption.toLowerCase().contains('math')) {
+        query += ',numbers,math';
+      } else if (caption.toLowerCase().contains('language')) {
+        query += ',books,letters';
+      }
+      
+      return baseUrl + query;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeColor.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Image content with fun border
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Container(
+              width: element.width,
+              height: element.height,
+              decoration: BoxDecoration(
+                border: Border.all(color: themeColor, width: 3),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: element.imageUrl.isNotEmpty
+                    ? Image.network(
+                        element.imageUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                  : null,
+                              color: themeColor,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          // If there's an error loading the image, use our AI-generated image instead
+                          return Image.network(
+                            getAIImageUrl(element.caption ?? 'educational flashcard', widget.subject.moduleId),
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  color: themeColor,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.image, size: 60, color: themeColor),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Image not available',
+                                      style: TextStyle(color: themeColor),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      )
+                    : Image.network(
+                        getAIImageUrl(element.caption ?? 'educational flashcard', widget.subject.moduleId),
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                  : null,
+                              color: themeColor,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.image, size: 60, color: themeColor),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Image not available',
+                                  style: TextStyle(color: themeColor),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ),
+          
+          // Caption with fun styling
+          if (element.caption != null && element.caption!.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              decoration: BoxDecoration(
+                color: themeColor.withOpacity(0.1),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Text(
+                element.caption ?? '',
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: themeColor,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+  
+  // Build kid-friendly audio element with enhanced visuals
+  Widget _buildKidFriendlyAudioElement(AudioElement element, Color themeColor) {
+    final bool isCurrentlyPlaying = _isPlaying && _currentAudioElementId == element.id;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeColor.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Title with fun icon
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.music_note, color: themeColor, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                element.title ?? 'Fun Audio',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: themeColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Play button with animation
+          InkWell(
+            onTap: element.audioUrl.isNotEmpty ? () => _toggleAudioPlayback(element) : null,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: themeColor.withOpacity(0.1),
+                border: Border.all(color: themeColor, width: 3),
+              ),
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: isCurrentlyPlaying ? 30 : 40,
+                  height: isCurrentlyPlaying ? 30 : 40,
+                  child: Icon(
+                    isCurrentlyPlaying ? Icons.pause : Icons.play_arrow,
+                    color: themeColor,
+                    size: isCurrentlyPlaying ? 30 : 40,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          // Progress bar with fun styling
+          if (isCurrentlyPlaying)
+            Column(
+              children: [
+                SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: themeColor,
+                    inactiveTrackColor: themeColor.withOpacity(0.2),
+                    thumbColor: themeColor,
+                    trackHeight: 6,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  ),
+                  child: Slider(
+                    value: _position.inSeconds.toDouble(),
+                    max: _duration.inSeconds.toDouble(),
+                    onChanged: (value) {
+                      _audioPlayer.seek(Duration(seconds: value.toInt()));
+                    },
+                  ),
+                ),
+                
+                // Duration display with fun styling
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: themeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _formatDuration(_position),
+                          style: TextStyle(color: themeColor, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: themeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _formatDuration(_duration),
+                          style: TextStyle(color: themeColor, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+  
+  // This is an empty placeholder to avoid duplicate method error
+  // The actual _playPageTurnSound method is defined above
+  
+  @override
+  Widget build(BuildContext context) {
+    // Determine screen size for responsive layout
+    final screenSize = MediaQuery.of(context).size;
+    final isDesktop = screenSize.width > 1200;
+    final isTablet = screenSize.width > 600 && screenSize.width <= 1200;
+    
+    // Group elements into pages
+    final pages = _groupElementsIntoPages();
+    
+    // Check if we've exceeded the page limit
+    final exceededLimit = _exceedsPageLimit(pages.length);
+    
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: AppBar(
+        title: Text(
+          _titleController.text,
+          style: TextStyle(
+            color: _getNoteColor(),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          // Template type indicator
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Chip(
+              label: Text(
+                _getAgeAppropriateStyle(widget.subject.moduleId, widget.subject.name).toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+              backgroundColor: _getAgeColor(widget.subject.moduleId),
+            ),
+          ),
+        ],
+        backgroundColor: Colors.white,
+        elevation: 2,
+      ),
+      body: Column(
+        children: [
+          // Main content area
+          Expanded(
+            child: GestureDetector(
+              // Add swipe detection for all devices
+              onHorizontalDragEnd: (details) {
+                if (details.primaryVelocity! > 0) {
+                  // Swipe right - go to previous page
+                  if (_currentPage > 0) {
+                    _pageController.previousPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                    _playPageTurnSound();
+                  }
+                } else if (details.primaryVelocity! < 0) {
+                  // Swipe left - go to next page
+                  if (_currentPage < pages.length - 1) {
+                    _pageController.nextPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                    _playPageTurnSound();
+                  }
+                }
+              },
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: pages.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPage = index;
+                  });
+                  // Add a fun sound effect when changing pages
+                  _playPageTurnSound();
+                },
+                // Enhanced page transition effects
+                pageSnapping: true,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, pageIndex) {
+                  // Get elements for this page
+                  final pageElements = pages[pageIndex];
+                  
+                  // Use a consistent flashcard layout for all screen sizes
+                  return AnimatedBuilder(
+                    animation: _pageController,
+                    builder: (context, child) {
+                      // Calculate the page position for animation effects
+                      double value = 1.0;
+                      if (_pageController.position.haveDimensions) {
+                        value = (_pageController.page! - pageIndex);
+                        // Create a bouncy, fun effect for kids
+                        value = (1 - (value.abs() * 0.5)).clamp(0.0, 1.0);
+                      }
+                      
+                      // Apply a fun 3D page flip effect that kids will enjoy
+                      return Transform(
+                        transform: Matrix4.identity()
+                          ..setEntry(3, 2, 0.001) // perspective
+                          ..rotateY(value - 1), // rotation effect
+                        alignment: Alignment.center,
+                        child: Stack(
+                          children: [
+                            // Flashcard container
+                            Container(
+                              margin: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: _getPageBackgroundColor(pageIndex),
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _getPageThemeColor(pageIndex).withOpacity(0.3),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  // Flashcard header
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Flashcard ${pageIndex + 1} of ${pages.length}',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: _getPageThemeColor(pageIndex),
+                                          ),
+                                        ),
+                                        // Include/exclude toggle for review mode
+                                        if (_isReviewMode)
+                                          Checkbox(
+                                            value: _selectedPages[pageIndex] ?? true,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedPages[pageIndex] = value!;
+                                              });
+                                            },
+                                            activeColor: _getPageThemeColor(pageIndex),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  // Flashcard content
+                                  Expanded(
+                                    child: Center(
+                                      child: SingleChildScrollView(
+                                        padding: const EdgeInsets.all(24),
+                                        child: _buildFlashcardContent(pageElements),
+                                      ),
+                                    ),
+                                  ),
+                                  
+                                  // Age indicator
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.child_care,
+                                          color: _getAgeColor(widget.subject.moduleId),
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Age ${widget.subject.moduleId}+',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: _getAgeColor(widget.subject.moduleId),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            
+                            // Swipe indicators
+                            if (pageIndex > 0)
+                              Positioned(
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.8),
+                                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(16)),
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_back_ios,
+                                      color: _getPageThemeColor(pageIndex),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (pageIndex < pages.length - 1)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                bottom: 0,
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.8),
+                                      borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_forward_ios,
+                                      color: _getPageThemeColor(pageIndex),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+          
+          // Bottom action bar
+          _isReviewMode
+              ? _buildBottomActionBar()
+              : _buildStandardActionBar(pages.length),
+        ],
+      ),
+    );
+  }
+}
