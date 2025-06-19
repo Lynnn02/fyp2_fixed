@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lottie/lottie.dart';
 import '../../models/score.dart';
 import '../../models/subject.dart';
 import '../../services/score_service.dart';
 import '../../services/content_service.dart';
+import 'dart:math' as math;
 
 class LeaderboardScreen extends StatefulWidget {
   final String? userId;
@@ -25,52 +27,62 @@ class LeaderboardScreen extends StatefulWidget {
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
 }
 
-class _LeaderboardScreenState extends State<LeaderboardScreen> {
+class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProviderStateMixin {
   final ScoreService _scoreService = ScoreService();
   final ContentService _contentService = ContentService();
   
+  late TabController _tabController;
   String _selectedSubjectId = 'all';
-  String _selectedSubjectName = 'All Subjects';
   List<Subject> _subjects = [];
   bool _isLoading = true;
   List<LeaderboardEntry> _leaderboard = [];
   int _userRank = 0;
   int _userPoints = 0;
   
+  // Animation controllers
+  late AnimationController _confettiController;
+  
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _confettiController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
     
     // If a specific subject is selected, use that
     if (widget.selectedSubjectId != null) {
       _selectedSubjectId = widget.selectedSubjectId!;
-      if (widget.selectedSubjectName != null) {
-        _selectedSubjectName = widget.selectedSubjectName!;
-      }
     }
     
     _loadSubjects();
     _loadLeaderboard();
   }
   
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _confettiController.dispose();
+    super.dispose();
+  }
+  
   Future<void> _loadSubjects() async {
     try {
-      // Get subjects for the age group
+      // Listen to the stream and update subjects when data arrives
       _contentService.getSubjectsByAge(widget.ageGroup).listen((subjects) {
-        if (mounted) {
-          setState(() {
-            _subjects = subjects;
-          });
-        }
+        setState(() {
+          _subjects = subjects;
+        });
+      }, onError: (e) {
+        print('Error in subjects stream: $e');
       });
     } catch (e) {
-      print('Error loading subjects: $e');
+      print('Error setting up subjects stream: $e');
     }
   }
   
   Future<void> _loadLeaderboard() async {
-    if (!mounted) return;
-    
     setState(() {
       _isLoading = true;
     });
@@ -91,11 +103,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       int userPoints = 0;
       
       if (widget.userId != null) {
+        // For default users, try to match by both userId and userName if available
         final userEntry = leaderboard.firstWhere(
-          (entry) => entry.userId == widget.userId,
+          (entry) => widget.userId == 'default_user' 
+              ? (entry.userId == widget.userId && entry.userName == widget.userName)
+              : entry.userId == widget.userId,
           orElse: () => LeaderboardEntry(
             userId: widget.userId!,
-            userName: widget.userName ?? 'You',
+            userName: widget.userName ?? 'Student',
             totalPoints: 0,
             rank: leaderboard.length + 1,
             ageGroup: widget.ageGroup,
@@ -104,44 +119,31 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         
         userRank = userEntry.rank;
         userPoints = userEntry.totalPoints;
+        
+        // If user is in top 3, play confetti animation
+        if (userRank <= 3 && userRank > 0) {
+          _confettiController.forward(from: 0);
+        }
       }
       
-      if (mounted) {
-        setState(() {
-          _leaderboard = leaderboard;
-          _userRank = userRank;
-          _userPoints = userPoints;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _leaderboard = leaderboard;
+        _userRank = userRank;
+        _userPoints = userPoints;
+        _isLoading = false;
+      });
     } catch (e) {
       print('Error loading leaderboard: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _isLoading = false;
+      });
     }
-  }
-  
-  void _changeSubject(String subjectId, String subjectName) {
-    setState(() {
-      _selectedSubjectId = subjectId;
-      _selectedSubjectName = subjectName;
-    });
-    _loadLeaderboard();
-  }
-  
-  Color _getRankColor(int rank) {
-    if (rank == 1) return Colors.orange.shade300; // Gold
-    if (rank == 2) return Colors.blue.shade400;   // Blue
-    if (rank == 3) return Colors.green.shade400;  // Green
-    return Colors.orange.shade200;                // Lower ranks
   }
   
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.lightBlue.shade100,
       body: Container(
         decoration: const BoxDecoration(
           // Rainbow background image
@@ -151,299 +153,507 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           ),
         ),
         child: SafeArea(
-          child: Stack(
+          child: Column(
             children: [
-              
-              // Cloud decorations
-              Positioned(
-                top: 10,
-                left: 10,
-                child: _buildCloud(60),
-              ),
-              
-              Positioned(
-                top: 5,
-                right: 20,
-                child: _buildCloud(80),
-              ),
-              
-              Column(
-                children: [
-                  // Title
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Text(
-                      'LEADERBOARD',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                        shadows: [
-                          Shadow(
-                            offset: const Offset(2, 2),
-                            blurRadius: 3.0,
-                            color: Colors.black.withOpacity(0.3),
-                          ),
-                        ],
-                      ),
+              // App bar with title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                  ),
-                  
-                  // Subject selector
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _selectedSubjectId,
-                        isExpanded: true,
-                        icon: const Icon(Icons.arrow_drop_down_circle, color: Colors.blue),
-                        underline: Container(height: 0),
-                        style: TextStyle(
-                          color: Colors.blue.shade800,
+                    Expanded(
+                      child: Text(
+                        'LEADERBOARD',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          shadows: [Shadow(color: Colors.white, blurRadius: 2)],
                         ),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            String subjectName = 'All Subjects';
-                            if (newValue != 'all') {
-                              final subject = _subjects.firstWhere(
-                                (s) => s.id == newValue,
-                                orElse: () => Subject(
-                                  id: newValue,
-                                  name: 'Subject',
-                                  chapters: [],
-                                  createdAt: Timestamp.now(),
-                                  moduleId: widget.ageGroup,
-                                ),
-                              );
-                              subjectName = subject.name;
-                            }
-                            _changeSubject(newValue, subjectName);
-                          }
-                        },
-                        items: [
-                          DropdownMenuItem<String>(
-                            value: 'all',
-                            child: const Text('All Subjects'),
-                          ),
-                          ..._subjects.map((Subject subject) {
-                            return DropdownMenuItem<String>(
-                              value: subject.id,
-                              child: Text(subject.name),
-                            );
-                          }).toList(),
-                        ],
+                        textAlign: TextAlign.center,
                       ),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.search, color: Colors.white),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Subject selector (only show if not coming from subject navigation)
+              if (widget.selectedSubjectId == null)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedSubjectId,
+                    dropdownColor: Colors.white,
+                    style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                    isExpanded: true,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedSubjectId = value;
+                        });
+                        _loadLeaderboard();
+                      }
+                    },
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'all',
+                        child: Text('All Subjects', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                      ),
+                      ..._subjects.map((subject) => DropdownMenuItem(
+                        value: subject.id,
+                        child: Text(subject.name, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                      )),
+                    ],
                   ),
-                  
-                  // Leaderboard content
-                  Expanded(
-                    child: _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _leaderboard.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.emoji_events,
-                                      size: 80,
-                                      color: Colors.amber.withOpacity(0.5),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      'No scores yet!',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Complete activities to earn points',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : Column(
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // User's stats card
+              if (widget.userId != null)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade300,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    children: [
+                      // Star icon
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      
+                      // User info
+                      Expanded(
+                        child: Text(
+                          'YOU',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      
+                      // Points
+                      Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            _userPoints.toString(),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              
+              // Top 3 podium section
+              if (!_isLoading && _leaderboard.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  margin: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // 2nd place
+                      if (_leaderboard.length >= 2)
+                        _buildPodiumItem(
+                          _leaderboard[1],
+                          height: 120,
+                          rank: 2,
+                          color: Colors.grey.shade300,
+                        ),
+                      
+                      const SizedBox(width: 10),
+                      
+                      // 1st place
+                      if (_leaderboard.isNotEmpty)
+                        _buildPodiumItem(
+                          _leaderboard[0],
+                          height: 170,
+                          rank: 1,
+                          color: Colors.amber,
+                        ),
+                      
+                      const SizedBox(width: 10),
+                      
+                      // 3rd place
+                      if (_leaderboard.length >= 3)
+                        _buildPodiumItem(
+                          _leaderboard[2],
+                          height: 100,
+                          rank: 3,
+                          color: Colors.brown.shade300,
+                        ),
+                    ],
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              
+              // "YOU ARE 1st" text at bottom (only show if user is in top 3)
+              if (widget.userId != null && _userRank <= 3 && _userRank > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    'YOU ARE ${_userRank}${_getOrdinalSuffix(_userRank)}',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      foreground: Paint()..shader = LinearGradient(
+                        colors: const [Colors.purple, Colors.red, Colors.orange, Colors.yellow, Colors.green, Colors.blue],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ).createShader(const Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
+                    ),
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              
+              // Leaderboard list
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  // Removed the dark background to show only the rainbow background
+                  // No decoration now to make it transparent
+
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                      : _leaderboard.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Top players list
-                                  Expanded(
-                                    child: ListView.builder(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      itemCount: _leaderboard.length > 6 ? 6 : _leaderboard.length,
-                                      itemBuilder: (context, index) {
-                                        final entry = _leaderboard[index];
-                                        final isCurrentUser = widget.userId != null && entry.userId == widget.userId;
-                                        
-                                        return Padding(
-                                          padding: const EdgeInsets.only(bottom: 8),
-                                          child: _buildRankItem(
-                                            entry, 
-                                            isCurrentUser,
-                                            index < 3, // Show star for top 3
-                                          ),
-                                        );
-                                      },
+                                  Icon(Icons.emoji_events_outlined, size: 64, color: Colors.grey.shade400),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No scores yet!',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.grey.shade300,
                                     ),
                                   ),
-                                  
-                                  // User's rank at bottom with kid-friendly style
-                                  if (widget.userId != null)
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      child: Center(
-                                        child: Stack(
-                                          children: [
-                                            // Shadow effect
-                                            Text(
-                                              'YOU ARE ${_userRank}${_getOrdinalSuffix(_userRank)}',
-                                              style: TextStyle(
-                                                fontSize: 28,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.black.withOpacity(0.3),
-                                                fontFamily: 'Comic Sans MS',
-                                                letterSpacing: 1.5,
-                                              ),
-                                            ),
-                                            // Main text with colorful gradient
-                                            ShaderMask(
-                                              shaderCallback: (bounds) => LinearGradient(
-                                                colors: [
-                                                  Colors.purple.shade300,
-                                                  Colors.blue.shade400,
-                                                  Colors.green.shade400,
-                                                  Colors.yellow.shade400,
-                                                  Colors.orange.shade400,
-                                                  Colors.red.shade400,
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              ).createShader(bounds),
-                                              child: Text(
-                                                'YOU ARE ${_userRank}${_getOrdinalSuffix(_userRank)}',
-                                                style: const TextStyle(
-                                                  fontSize: 28,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white,
-                                                  fontFamily: 'Comic Sans MS',
-                                                  letterSpacing: 1.5,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
                                 ],
                               ),
-                  ),
-                ],
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(top: 8),
+                              itemCount: _leaderboard.length,
+                              itemBuilder: (context, index) {
+                                final entry = _leaderboard[index];
+                                // For default users, check both userId and userName to identify current user
+                                final isCurrentUser = widget.userId != null && 
+                                    (widget.userId == 'default_user' 
+                                        ? (entry.userId == widget.userId && entry.userName == widget.userName)
+                                        : entry.userId == widget.userId);
+                                
+                                // Don't skip any entries, show all in the list
+                                                                // Only show the green user stats card as in the image
+                                 if (!isCurrentUser) return const SizedBox.shrink();
+                                 
+                                 return Container(
+                                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                   decoration: BoxDecoration(
+                                     color: Colors.green.shade400,
+                                     borderRadius: BorderRadius.circular(20),
+                                   ),
+                                  child: Row(
+                                    children: [
+                                      // Rank number (1)
+                                      Text(
+                                        "${entry.rank}",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      
+                                      // User's actual name instead of "You"
+                                      Text(
+                                        entry.userName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      
+                                      // Spacer to push points to the right
+                                      const Spacer(),
+                                      
+                                      // Points
+                                      Text(
+                                        entry.totalPoints.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                ),
               ),
+              
+              // Add "YOU ARE Xst" text below podium
+              if (!_isLoading && _leaderboard.isNotEmpty && widget.userId != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 20),
+                  child: Text(
+                    _getUserRankText(),
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade400,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
+
     );
   }
   
-  Widget _buildRankItem(LeaderboardEntry entry, bool isCurrentUser, bool showStar) {
-    final rank = entry.rank;
-    final color = _getRankColor(rank);
-    
-    return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(25),
-      ),
-      child: Row(
-        children: [
-          // Rank number with star
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.amber,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: showStar 
-                ? Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(Icons.star, color: Colors.white, size: 40),
-                      Text(
-                        rank.toString(),
-                        style: TextStyle(
-                          color: Colors.amber.shade800,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                        ),
-                      ),
-                    ],
-                  )
-                : Text(
-                    rank.toString(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                    ),
-                  ),
-            ),
+  // New method for building podium profile pictures
+  Widget _buildPodiumProfile(LeaderboardEntry entry, {
+    required int rank,
+    required double size,
+  }) {
+    return Column(
+      children: [
+        // Rank badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: rank == 1 ? Colors.amber : rank == 2 ? Colors.grey.shade300 : Colors.brown.shade300,
+            borderRadius: BorderRadius.circular(4),
           ),
-          
-          // Player name
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                isCurrentUser ? 'YOU' : entry.userName,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+          child: Text(
+            rank.toString(),
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 8),
+        
+        // Profile picture
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: _getProfileColor(entry.userName),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+          ),
+          child: Center(
+            child: Text(
+              entry.userName.isNotEmpty ? entry.userName[0].toUpperCase() : '?',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.4,
               ),
             ),
           ),
-          
-          // Points
+        ),
+        const SizedBox(height: 8),
+        
+        // Name
+        Text(
+          entry.userName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+  
+  // Helper method to build bottom navigation item
+  Widget _buildNavItem(IconData icon, String label, {required bool isSelected}) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          icon,
+          color: isSelected ? Colors.amber : Colors.grey,
+          size: 24,
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.amber : Colors.grey,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Helper method to get profile color based on name
+  Color _getProfileColor(String name) {
+    if (name.isEmpty) return Colors.grey;
+    
+    // Generate a consistent color based on the name
+    final int hashCode = name.hashCode;
+    final List<Color> colors = [
+      Colors.blue.shade400,
+      Colors.red.shade400,
+      Colors.green.shade400,
+      Colors.purple.shade400,
+      Colors.orange.shade400,
+      Colors.pink.shade400,
+      Colors.teal.shade400,
+    ];
+    
+    return colors[hashCode.abs() % colors.length];
+  }
+  
+  Widget _buildPodiumItem(LeaderboardEntry entry, {
+    required double height,
+    required int rank,
+    required Color color,
+  }) {
+    final isCurrentUser = widget.userId != null && entry.userId == widget.userId;
+    
+    Color podiumColor = color;
+    IconData trophyIcon = Icons.emoji_events;
+    
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // User avatar
           Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isCurrentUser ? Colors.blue : Colors.white,
+              border: Border.all(
+                color: color,
+                width: 2,
+              ),
+            ),
+            child: CircleAvatar(
+              radius: rank == 1 ? 30 : 25,
+              backgroundColor: color.withOpacity(0.3),
+              child: Icon(
+                Icons.emoji_events,
+                color: color,
+                size: rank == 1 ? 30 : 24,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          
+          // User name
+          Text(
+            isCurrentUser ? 'You' : entry.userName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          
+          // Points with star
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: Colors.amber,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.star, color: Colors.white, size: 16),
-                const SizedBox(width: 4),
+                const Icon(Icons.star, color: Colors.white, size: 14),
+                const SizedBox(width: 2),
                 Text(
                   entry.totalPoints.toString(),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 14,
                   ),
                 ),
               ],
+            ),
+          ),
+          
+          // Podium
+          Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            ),
+            child: Center(
+              child: Text(
+                rank.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 30,
+                ),
+              ),
             ),
           ),
         ],
@@ -451,12 +661,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
   
-  String _getOrdinalSuffix(int rank) {
-    if (rank >= 11 && rank <= 13) {
+  // Helper method to get ordinal suffix (1st, 2nd, 3rd, etc.)
+  String _getOrdinalSuffix(int number) {
+    if (number >= 11 && number <= 13) {
       return 'th';
     }
     
-    switch (rank % 10) {
+    switch (number % 10) {
       case 1: return 'st';
       case 2: return 'nd';
       case 3: return 'rd';
@@ -464,14 +675,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }
   }
   
-  Widget _buildCloud(double size) {
-    return Container(
-      width: size,
-      height: size * 0.6,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(size / 2),
-      ),
-    );
+  String _getUserRankText() {
+    if (_leaderboard.isEmpty || widget.userId == null) return '';
+    
+    for (var entry in _leaderboard) {
+      if (entry.userId == widget.userId) {
+        return 'YOU ARE ${entry.rank}${_getOrdinalSuffix(entry.rank)}';
+      }
+    }
+    
+    return '';
+  }
+  
+  Color _getRankColor(int rank) {
+    if (rank == 1) return Colors.amber;
+    if (rank == 2) return Colors.grey.shade400;
+    if (rank == 3) return Colors.brown.shade300;
+    return Colors.blue.shade300;
   }
 }
