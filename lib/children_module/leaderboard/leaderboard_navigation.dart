@@ -230,12 +230,14 @@ class _LeaderboardNavigationState extends State<LeaderboardNavigation> {
 
   // Navigate to the appropriate leaderboard screen
   void _navigateToLeaderboard(String subjectId) {
+    // Get the studentID from profiles if available, otherwise use userId
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => LeaderboardScreen(
           userId: widget.userId,
           userName: widget.userName,
+          studentId: widget.userId, // Pass the studentId separately
           ageGroup: widget.ageGroup,
           selectedSubjectId: subjectId == 'all' ? null : subjectId,
           selectedSubjectName: subjectId == 'all' ? 'Global' : _subjects.firstWhere((s) => s.id == subjectId).name,

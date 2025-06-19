@@ -209,6 +209,30 @@ class ScoreService {
   // Get leaderboard for a specific subject
   Future<List<LeaderboardEntry>> getSubjectLeaderboard(String subjectId) async {
     try {
+      // First, get all profiles to have accurate student names
+      final Map<String, String> userProfiles = {};
+      try {
+        final profilesSnapshot = await _firestore.collection('profiles').get();
+        for (final doc in profilesSnapshot.docs) {
+          final data = doc.data();
+          final userId = doc.id;
+          String name = 'Student';
+          
+          // Try to get studentName first, then fall back to name
+          if (data.containsKey('studentName') && data['studentName'] is String && data['studentName'].toString().isNotEmpty) {
+            name = data['studentName'];
+          } else if (data.containsKey('name') && data['name'] is String && data['name'].toString().isNotEmpty) {
+            name = data['name'];
+          }
+          
+          userProfiles[userId] = name;
+          print('Added profile for $userId: $name');
+        }
+      } catch (e) {
+        print('Error loading profiles: $e');
+      }
+      
+      // Now get the scores for this subject
       final snapshot = await _firestore
           .collection('scores')
           .where('subjectId', isEqualTo: subjectId)
@@ -220,9 +244,12 @@ class ScoreService {
       final Map<String, Map<String, dynamic>> userScores = {};
       for (final score in scores) {
         if (!userScores.containsKey(score.userId)) {
+          // Get the real user name from our profiles map
+          String realUserName = userProfiles[score.userId] ?? score.userName;
+          
           userScores[score.userId] = {
             'userId': score.userId,
-            'userName': score.userName,
+            'userName': realUserName,
             'totalPoints': 0,
             'ageGroup': score.ageGroup,
           };
@@ -288,6 +315,29 @@ class ScoreService {
   // Get leaderboard for a specific age group
   Future<List<LeaderboardEntry>> getAgeGroupLeaderboard(int ageGroup) async {
     try {
+      // First, get all profiles to have accurate student names
+      final Map<String, String> userProfiles = {};
+      try {
+        final profilesSnapshot = await _firestore.collection('profiles').get();
+        for (final doc in profilesSnapshot.docs) {
+          final data = doc.data();
+          final userId = doc.id;
+          String name = 'Student';
+          
+          // Try to get studentName first, then fall back to name
+          if (data.containsKey('studentName') && data['studentName'] is String && data['studentName'].toString().isNotEmpty) {
+            name = data['studentName'];
+          } else if (data.containsKey('name') && data['name'] is String && data['name'].toString().isNotEmpty) {
+            name = data['name'];
+          }
+          
+          userProfiles[userId] = name;
+        }
+      } catch (e) {
+        print('Error loading profiles: $e');
+      }
+      
+      // Now get the scores for this age group
       final snapshot = await _firestore
           .collection('scores')
           .where('ageGroup', isEqualTo: ageGroup)
@@ -299,9 +349,12 @@ class ScoreService {
       final Map<String, Map<String, dynamic>> userScores = {};
       for (final score in scores) {
         if (!userScores.containsKey(score.userId)) {
+          // Get the real user name from our profiles map
+          String realUserName = userProfiles[score.userId] ?? score.userName;
+          
           userScores[score.userId] = {
             'userId': score.userId,
-            'userName': score.userName,
+            'userName': realUserName,
             'totalPoints': 0,
             'ageGroup': score.ageGroup,
           };

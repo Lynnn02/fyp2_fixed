@@ -10,6 +10,7 @@ import 'dart:math' as math;
 class LeaderboardScreen extends StatefulWidget {
   final String? userId;
   final String? userName;
+  final String? studentId; // Added studentId parameter
   final int ageGroup;
   final String? selectedSubjectId;
   final String? selectedSubjectName;
@@ -18,6 +19,7 @@ class LeaderboardScreen extends StatefulWidget {
     Key? key,
     this.userId,
     this.userName,
+    this.studentId, // Added studentId parameter
     required this.ageGroup,
     this.selectedSubjectId,
     this.selectedSubjectName,
@@ -101,16 +103,30 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
       // Find user's rank and points
       int userRank = 0;
       int userPoints = 0;
+      String displayName = widget.userName ?? 'Student';
       
+      // First, try to get the real student name from Firebase
       if (widget.userId != null) {
-        // For default users, try to match by both userId and userName if available
+        try {
+          // Try to get the student name from profiles collection
+          final profileDoc = await FirebaseFirestore.instance.collection('profiles').doc(widget.userId).get();
+          if (profileDoc.exists && profileDoc.data() != null) {
+            final data = profileDoc.data()!;
+            if (data.containsKey('studentName') && data['studentName'] is String && data['studentName'].toString().isNotEmpty) {
+              displayName = data['studentName'];
+              print('Found student name from profiles: $displayName');
+            }
+          }
+        } catch (e) {
+          print('Error getting profile: $e');
+        }
+        
+        // Find the user entry in the leaderboard
         final userEntry = leaderboard.firstWhere(
-          (entry) => widget.userId == 'default_user' 
-              ? (entry.userId == widget.userId && entry.userName == widget.userName)
-              : entry.userId == widget.userId,
+          (entry) => entry.userId == widget.userId,
           orElse: () => LeaderboardEntry(
             userId: widget.userId!,
-            userName: widget.userName ?? 'Student',
+            userName: displayName,
             totalPoints: 0,
             rank: leaderboard.length + 1,
             ageGroup: widget.ageGroup,
@@ -382,11 +398,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                               itemCount: _leaderboard.length,
                               itemBuilder: (context, index) {
                                 final entry = _leaderboard[index];
-                                // For default users, check both userId and userName to identify current user
-                                final isCurrentUser = widget.userId != null && 
-                                    (widget.userId == 'default_user' 
-                                        ? (entry.userId == widget.userId && entry.userName == widget.userName)
-                                        : entry.userId == widget.userId);
+                                // Identify current user by userId
+                                final isCurrentUser = widget.userId != null && entry.userId == widget.userId;
                                 
                                 // Don't skip any entries, show all in the list
                                                                 // Only show the green user stats card as in the image

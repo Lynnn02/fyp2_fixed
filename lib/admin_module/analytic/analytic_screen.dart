@@ -81,7 +81,17 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       for (var doc in profilesSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final userId = doc.id; // Use document ID as the user ID
-        final userName = data['name'] as String?;
+        String? userName;
+        
+        // First try to get studentName (as seen in Firebase screenshot)
+        if (data.containsKey('studentName') && data['studentName'] is String && data['studentName'].toString().isNotEmpty) {
+          userName = data['studentName'] as String;
+        } 
+        // Fall back to name field if studentName is not available
+        else if (data.containsKey('name') && data['name'] is String && data['name'].toString().isNotEmpty) {
+          userName = data['name'] as String;
+        }
+        
         final ageGroup = data['ageGroup'] as int?;
         
         // Store real student names from profiles
@@ -707,7 +717,8 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       // Convert to the format needed for display
       _topStudents = leaderboardEntries.map((entry) => {
         'userId': entry.userId,
-        'userName': entry.userName,
+        // Use the real user name from our userNames map if available
+        'userName': userNames[entry.userId] ?? entry.userName,
         'totalPoints': entry.totalPoints,
         'activities': 0, // We don't have this info from leaderboard entries
         'rank': entry.rank,
@@ -780,16 +791,21 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
     query.get().then((snapshot) {
       // Process the scores data
       Map<String, Map<String, Map<String, dynamic>>> studentSubjectData = {};
-      Map<String, String> userNames = {};
+      Map<String, String> localUserNames = {};
       
-      // First, extract user names from scores
+      // First, use the already loaded user names from profiles collection
+      // This ensures we use the correct student names
+      localUserNames.addAll(userNames);
+      
+      // As a fallback, extract user names from scores if not already in our map
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final userId = data['userId'] as String?;
         final userName = data['userName'] as String?;
         
-        if (userId != null && userName != null && userName != 'Unknown') {
-          userNames[userId] = userName;
+        if (userId != null && userName != null && userName != 'Unknown' && 
+            !localUserNames.containsKey(userId)) {
+          localUserNames[userId] = userName;
         }
       }
       
@@ -804,7 +820,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
         if (userId == null) continue;
         
         // Get the best user name available
-        String userName = userNames[userId] ?? 
+        String userName = localUserNames[userId] ?? 
                          entry['userName'] as String? ?? 
                          'Student ${userId.substring(0, min(4, userId.length))}';
         
