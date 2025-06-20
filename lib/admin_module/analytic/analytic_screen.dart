@@ -68,8 +68,11 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       
       print('Loading analytics with age filter: $ageFilter');
       
-      // Reset user data maps
+      // Reset all data collections to ensure clean state when filter changes
       userNames.clear();
+      _activityData.clear();
+      _topStudents.clear();
+      _studentPerformance.clear();
       Map<String, int> userAges = {};
       
       // Load real student names from profiles collection
@@ -92,7 +95,20 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
           userName = data['name'] as String;
         }
         
-        final ageGroup = data['ageGroup'] as int?;
+        // Get age information - profiles collection uses 'age' field
+        int? userAge;
+        if (data.containsKey('age')) {
+          var age = data['age'];
+          if (age is int) {
+            userAge = age;
+          } else if (age is String) {
+            try {
+              userAge = int.parse(age);
+            } catch (_) {
+              // Ignore parsing errors
+            }
+          }
+        }
         
         // Store real student names from profiles
         if (userName != null && userName.isNotEmpty) {
@@ -100,8 +116,9 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
           print('Found real student name: $userName for user ID: $userId');
         }
         
-        if (ageGroup != null) {
-          userAges[userId] = ageGroup;
+        if (userAge != null) {
+          userAges[userId] = userAge;
+          print('Found age $userAge for user $userId');
         }
       }
       
@@ -138,7 +155,9 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       
       // Apply age filter if needed
       if (ageFilter != null) {
+        // scores collection uses 'ageGroup' field
         scoresQuery = scoresQuery.where('ageGroup', isEqualTo: ageFilter);
+        print('Filtering scores by ageGroup: $ageFilter');
       }
       
       final scoresSnapshot = await scoresQuery
@@ -571,7 +590,60 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
     // Apply age filter if needed
     if (_selectedAge != 'All') {
       int ageFilter = int.parse(_selectedAge);
+      print('Filtering activity data by age: $ageFilter');
+      
+      // scores collection uses 'ageGroup' field
       query = query.where('ageGroup', isEqualTo: ageFilter);
+      
+      // Also filter the progressData by age - handle different field names
+      progressData = progressData.where((entry) {
+        // Check for ageGroup field (used in scores and games)
+        if (entry.containsKey('ageGroup')) {
+          var entryAgeGroup = entry['ageGroup'];
+          if (entryAgeGroup == null) return false;
+          
+          if (entryAgeGroup is int) {
+            return entryAgeGroup == ageFilter;
+          } else if (entryAgeGroup is String) {
+            try {
+              return int.parse(entryAgeGroup) == ageFilter;
+            } catch (_) {
+              return entryAgeGroup == ageFilter.toString();
+            }
+          }
+        }
+        // Check for age field (used in profiles)
+        else if (entry.containsKey('age')) {
+          var entryAge = entry['age'];
+          if (entryAge == null) return false;
+          
+          if (entryAge is int) {
+            return entryAge == ageFilter;
+          } else if (entryAge is String) {
+            try {
+              return int.parse(entryAge) == ageFilter;
+            } catch (_) {
+              return entryAge == ageFilter.toString();
+            }
+          }
+        }
+        // Check for moduleId field (used in subjects)
+        else if (entry.containsKey('moduleId')) {
+          var moduleId = entry['moduleId'];
+          if (moduleId == null) return false;
+          
+          if (moduleId is int) {
+            return moduleId == ageFilter;
+          } else if (moduleId is String) {
+            try {
+              return int.parse(moduleId) == ageFilter;
+            } catch (_) {
+              return moduleId == ageFilter.toString();
+            }
+          }
+        }
+        return false;
+      }).toList();
     }
     
     query.get().then((snapshot) {
@@ -711,7 +783,25 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       if (_selectedAge != 'All') {
         // Filter by age if needed
         int ageFilter = int.parse(_selectedAge);
-        leaderboardEntries = leaderboardEntries.where((entry) => entry.ageGroup == ageFilter).toList();
+        print('Filtering leaderboard entries by age: $ageFilter');
+        print('Before filtering: ${leaderboardEntries.length} entries');
+        
+        // Ensure we're comparing the same types (int to int)
+        leaderboardEntries = leaderboardEntries.where((entry) {
+          // Score entries use ageGroup field
+          if (entry.ageGroup is int) {
+            return entry.ageGroup == ageFilter;
+          } else if (entry.ageGroup is String) {
+            try {
+              return int.parse(entry.ageGroup as String) == ageFilter;
+            } catch (_) {
+              return false;
+            }
+          }
+          return false;
+        }).toList();
+        
+        print('After filtering: ${leaderboardEntries.length} entries');
       }
       
       // Convert to the format needed for display
@@ -785,7 +875,60 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
     // Apply age filter if needed
     if (_selectedAge != 'All') {
       int ageFilter = int.parse(_selectedAge);
+      print('Filtering student performance data by age: $ageFilter');
+      
+      // scores collection uses 'ageGroup' field
       query = query.where('ageGroup', isEqualTo: ageFilter);
+      
+      // Also filter the progressData by age
+      progressData = progressData.where((entry) {
+        // Check for ageGroup field (used in scores and games)
+        if (entry.containsKey('ageGroup')) {
+          var entryAgeGroup = entry['ageGroup'];
+          if (entryAgeGroup == null) return false;
+          
+          if (entryAgeGroup is int) {
+            return entryAgeGroup == ageFilter;
+          } else if (entryAgeGroup is String) {
+            try {
+              return int.parse(entryAgeGroup) == ageFilter;
+            } catch (_) {
+              return entryAgeGroup == ageFilter.toString();
+            }
+          }
+        }
+        // Check for age field (used in profiles)
+        else if (entry.containsKey('age')) {
+          var entryAge = entry['age'];
+          if (entryAge == null) return false;
+          
+          if (entryAge is int) {
+            return entryAge == ageFilter;
+          } else if (entryAge is String) {
+            try {
+              return int.parse(entryAge) == ageFilter;
+            } catch (_) {
+              return entryAge == ageFilter.toString();
+            }
+          }
+        }
+        // Check for moduleId field (used in subjects)
+        else if (entry.containsKey('moduleId')) {
+          var moduleId = entry['moduleId'];
+          if (moduleId == null) return false;
+          
+          if (moduleId is int) {
+            return moduleId == ageFilter;
+          } else if (moduleId is String) {
+            try {
+              return int.parse(moduleId) == ageFilter;
+            } catch (_) {
+              return moduleId == ageFilter.toString();
+            }
+          }
+        }
+        return false;
+      }).toList();
     }
     
     query.get().then((snapshot) {

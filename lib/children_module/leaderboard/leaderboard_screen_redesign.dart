@@ -455,20 +455,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                             ),
                 ),
               ),
-              
-              // Add "YOU ARE Xst" text below podium
-              if (!_isLoading && _leaderboard.isNotEmpty && widget.userId != null)
-                Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  child: Text(
-                    _getUserRankText(),
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade400,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),

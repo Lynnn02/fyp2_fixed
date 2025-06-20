@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math' as Math;
 
 class ProgressTrackingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -15,8 +16,45 @@ class ProgressTrackingService {
     String? gameType,
   }) async {
     try {
+      // First, check if this is a default userId and try to get the real userId from profiles
+      String actualUserId = userId;
+      String userName = '';
+      
+      if (userId == 'default_user' || userId.isEmpty) {
+        // Try to get the current authenticated user
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          actualUserId = currentUser.uid;
+          print('Using authenticated user ID instead of default_user: $actualUserId');
+        }
+      }
+      
+      // Try to get the real user name from profiles collection
+      try {
+        final profileDoc = await _firestore.collection('profiles').doc(actualUserId).get();
+        if (profileDoc.exists) {
+          final data = profileDoc.data();
+          if (data != null) {
+            // Check if the profile has a studentName field
+            if (data.containsKey('studentName') && data['studentName'] is String && data['studentName'].toString().isNotEmpty) {
+              userName = data['studentName'];
+            } else if (data.containsKey('name') && data['name'] is String && data['name'].toString().isNotEmpty) {
+              userName = data['name'];
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching user profile: $e');
+      }
+      
+      // If we couldn't find a name, use a generic one
+      if (userName.isEmpty) {
+        userName = 'Student ${actualUserId.substring(0, Math.min(4, actualUserId.length))}';
+      }
+      
       final progressData = {
-        'userId': userId,
+        'userId': actualUserId, // Use the actual user ID, not default_user
+        'userName': userName, // Include the real user name
         'subject': subject,
         'chapterName': chapterName,
         'points': points,
@@ -33,7 +71,7 @@ class ProgressTrackingService {
       // Save to progress collection
       await _firestore.collection('progress').add(progressData);
       
-      print('Progress tracked: $subject - $activityType for $studyMinutes minutes');
+      print('Progress tracked for user $userName ($actualUserId): $subject - $activityType for $studyMinutes minutes');
     } catch (e) {
       print('Error tracking progress: $e');
     }

@@ -72,15 +72,27 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
     if (_isDataSaved) return;
     
     try {
+      // First, check if this is a default userId and try to get the real userId from profiles
+      String actualUserId = widget.userId;
+      
+      if (widget.userId == 'default_user' || widget.userId.isEmpty) {
+        // Try to get the current authenticated user
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          actualUserId = currentUser.uid;
+          print('Using authenticated user ID instead of default_user: $actualUserId');
+        }
+      }
+      
       // Look up the real student name from the profiles collection
       String realUserName = "";
       bool foundRealName = false;
-      
+        
       try {
-        print('Looking up real name for user ID: ${widget.userId}');
+        print('Looking up real name for user ID: $actualUserId');
         
         // First check the profiles collection for the real student name
-        final profileDoc = await FirebaseFirestore.instance.collection('profiles').doc(widget.userId).get();
+        final profileDoc = await FirebaseFirestore.instance.collection('profiles').doc(actualUserId).get();
         if (profileDoc.exists) {
           final profileData = profileDoc.data();
           if (profileData != null) {
@@ -90,7 +102,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
               if (studentName is String && studentName.isNotEmpty) {
                 realUserName = studentName;
                 foundRealName = true;
-                print('Found real student name from profiles.studentName: $realUserName for user ID: ${widget.userId}');
+                print('Found real student name from profiles.studentName: $realUserName for user ID: $actualUserId');
               }
             }
             // Also try name field as fallback
@@ -99,7 +111,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
               if (name is String && name.isNotEmpty) {
                 realUserName = name;
                 foundRealName = true;
-                print('Found real student name from profiles.name: $realUserName for user ID: ${widget.userId}');
+                print('Found real student name from profiles.name: $realUserName for user ID: $actualUserId');
               }
             }
           }
@@ -107,7 +119,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
         
         // If still no real name found, check the users collection as a fallback
         if (!foundRealName) {
-          final userDoc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(actualUserId).get();
           if (userDoc.exists) {
             final userData = userDoc.data();
             if (userData != null) {
@@ -119,7 +131,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
                     displayName != 'Default User') {
                   realUserName = displayName;
                   foundRealName = true;
-                  print('Found real name from users.displayName: $realUserName for user ID: ${widget.userId}');
+                  print('Found real name from users.displayName: $realUserName for user ID: $actualUserId');
                 }
               } else if (userData.containsKey('name')) {
                 final name = userData['name'];
@@ -128,7 +140,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
                     name != 'Default User') {
                   realUserName = name;
                   foundRealName = true;
-                  print('Found real name from users.name: $realUserName for user ID: ${widget.userId}');
+                  print('Found real name from users.name: $realUserName for user ID: $actualUserId');
                 }
               }
             }
@@ -139,7 +151,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
         if (!foundRealName) {
           // Query profiles collection where userId field equals our userId
           final profilesQuery = await FirebaseFirestore.instance.collection('profiles')
-              .where('userId', isEqualTo: widget.userId)
+              .where('userId', isEqualTo: actualUserId)
               .limit(1)
               .get();
           
@@ -150,7 +162,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
               if (studentName is String && studentName.isNotEmpty) {
                 realUserName = studentName;
                 foundRealName = true;
-                print('Found real name from profiles query: $realUserName for user ID: ${widget.userId}');
+                print('Found real name from profiles query: $realUserName for user ID: $actualUserId');
               }
             }
           }
@@ -161,13 +173,13 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
       
       // If we still have a default user name, use a more descriptive generic name
       if (realUserName.isEmpty) {
-        realUserName = 'Student ${widget.userId.substring(0, Math.min(4, widget.userId.length))}';
-        print('Using generic name: $realUserName for user ID: ${widget.userId}');
+        realUserName = 'Student ${actualUserId.substring(0, Math.min(4, actualUserId.length))}';
+        print('Using generic name: $realUserName for user ID: $actualUserId');
       }
       
       // Create progress data with the real user name
       final progressData = {
-        'userId': widget.userId,
+        'userId': actualUserId, // Use the actual userId, not default_user
         'userName': realUserName, // Add the real student name
         'subject': widget.subject,
         'chapterName': widget.activityName,

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/user_service.dart';
@@ -85,18 +86,56 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => const SignupScreen(),
         '/reset': (context) => const ResetPasswordScreen(),
         '/profile': (context) => const ProfileSetupScreen(),
-        '/settings': (context) => const SettingScreen(userId: 'default_user'),
-        '/module4': (context) => Module4Screen(userId: 'default_user', userName: _getRealUserNameSync('default_user')),
-        '/module5': (context) => Module5Screen(userId: 'default_user', userName: _getRealUserNameSync('default_user')),
-        '/module6': (context) => Module6Screen(userId: 'default_user', userName: _getRealUserNameSync('default_user')),
+        '/settings': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return SettingScreen(userId: userId);
+        },
+        '/module4': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return Module4Screen(userId: userId, userName: _getRealUserNameSync(userId));
+        },
+        '/module5': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return Module5Screen(userId: userId, userName: _getRealUserNameSync(userId));
+        },
+        '/module6': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return Module6Screen(userId: userId, userName: _getRealUserNameSync(userId));
+        },
         // '/play' route removed as it's no longer needed
-        '/module4Play': (context) => Module4PlayScreen(userId: 'default_user', userName: _getRealUserNameSync('default_user')),
-        '/module5Play': (context) => Module5PlayScreen(userId: 'default_user', userName: _getRealUserNameSync('default_user')),
-        '/module6Play': (context) => Module6PlayScreen(userId: 'default_user', userName: _getRealUserNameSync('default_user')),
+        '/module4Play': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return Module4PlayScreen(userId: userId, userName: _getRealUserNameSync(userId));
+        },
+        '/module5Play': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return Module5PlayScreen(userId: userId, userName: _getRealUserNameSync(userId));
+        },
+        '/module6Play': (context) {
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userId = currentUser?.uid ?? 'default_user';
+          return Module6PlayScreen(userId: userId, userName: _getRealUserNameSync(userId));
+        },
         '/subjectSelection': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           int moduleId = 4;
-          String userId = 'default_user';
+          
+          // Get current user ID or fallback to default
+          final currentUser = FirebaseAuth.instance.currentUser;
+          String userId = currentUser?.uid ?? 'default_user';
           
           if (args is Map<String, dynamic>) {
             moduleId = args['moduleId'] as int? ?? 4;

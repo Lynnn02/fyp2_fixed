@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:math' show min;
 import '../models/score.dart';
@@ -22,16 +23,28 @@ class ScoreService {
     try {
       final timestamp = DateTime.now();
       
+      // First, check if this is a default userId and try to get the real userId from profiles
+      String actualUserId = userId;
+      
+      if (userId == 'default_user' || userId.isEmpty) {
+        // Try to get the current authenticated user
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          actualUserId = currentUser.uid;
+          print('Using authenticated user ID instead of default_user: $actualUserId');
+        }
+      }
+      
       // ALWAYS look up the real student name from the profiles collection
       // regardless of what userName is passed in
       String realUserName = userName; // Start with the provided name as fallback
       bool foundRealName = false;
       
       try {
-        print('Looking up real name for user ID: $userId');
+        print('Looking up real name for user ID: $actualUserId');
         
         // First check the profiles collection for the real student name
-        final profileDoc = await _firestore.collection('profiles').doc(userId).get();
+        final profileDoc = await _firestore.collection('profiles').doc(actualUserId).get();
         if (profileDoc.exists) {
           final profileData = profileDoc.data();
           if (profileData != null) {
@@ -58,7 +71,7 @@ class ScoreService {
         
         // If still no real name found, check the users collection as a fallback
         if (!foundRealName) {
-          final userDoc = await _firestore.collection('users').doc(userId).get();
+          final userDoc = await _firestore.collection('users').doc(actualUserId).get();
           if (userDoc.exists) {
             final userData = userDoc.data();
             if (userData != null) {
@@ -92,7 +105,7 @@ class ScoreService {
                               realUserName == 'Default User')) {
           // Query profiles collection where userId field equals our userId
           final profilesQuery = await _firestore.collection('profiles')
-              .where('userId', isEqualTo: userId)
+              .where('userId', isEqualTo: actualUserId)
               .limit(1)
               .get();
           
@@ -117,12 +130,12 @@ class ScoreService {
       if (realUserName.isEmpty || 
           realUserName.toLowerCase().contains('default') || 
           realUserName == 'Default User') {
-        realUserName = 'Student ${userId.substring(0, min(4, userId.length))}';
-        print('Using generic name: $realUserName for user ID: $userId');
+        realUserName = 'Student ${actualUserId.substring(0, min(4, actualUserId.length))}';
+        print('Using generic name: $realUserName for user ID: $actualUserId');
       }
       final score = Score(
         id: _uuid.v4(),
-        userId: userId,
+        userId: actualUserId, // Use the actual userId, not default_user
         userName: realUserName, // Use the real student name we looked up
         subjectId: subjectId,
         subjectName: subjectName,
@@ -139,7 +152,7 @@ class ScoreService {
       
       // Also save to progress collection for child progress tracking
       await _firestore.collection('progress').add({
-        'userId': userId,
+        'userId': actualUserId, // Use the actual userId, not default_user
         'userName': realUserName, // Add the real student name
         'subject': subjectName,
         'chapterName': activityName,

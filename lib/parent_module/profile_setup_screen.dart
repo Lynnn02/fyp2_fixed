@@ -97,6 +97,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
 
     final profileData = {
+      'userId': uid, // Add userId to ensure consistency with progress and scores collections
       'studentName': _studentName.text.trim(),
       'age': selectedAge,
       'gender': selectedGender,
@@ -106,6 +107,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       'parentIC': _parentIC.text.trim(),
       'studentIC': _studentIC.text.trim(),
       'createdAt': FieldValue.serverTimestamp(),
+      'lastUpdated': FieldValue.serverTimestamp(),
     };
 
     try {

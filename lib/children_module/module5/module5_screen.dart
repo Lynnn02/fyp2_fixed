@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../widgets/module_button.dart';
-import '../../widgets/child_scaffold.dart';
 import '../leaderboard/leaderboard_navigation.dart';
 import 'module5_playScreen.dart';
 
@@ -14,38 +13,7 @@ class Module5Screen extends StatelessWidget {
     required this.userName,
   });
 
-  void _handleNavigation(int index, BuildContext context) {
-    switch (index) {
-      case 0: // Home - already on this screen
-        break;
-      case 1: // Games
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => Module5PlayScreen(
-              userId: userId,
-              userName: userName,
-            ),
-          ),
-        );
-        break;
-      case 2: // Learn
-        Navigator.pushNamed(context, '/module5Learn');
-        break;
-      case 3: // Leaderboard
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LeaderboardNavigation(
-              userId: userId,
-              userName: userName,
-              ageGroup: 5,
-            ),
-          ),
-        );
-        break;
-    }
-  }
+  // No navigation handler needed anymore as we removed the bottom navigation bar
 
   @override
   Widget build(BuildContext context) {
@@ -86,14 +54,6 @@ class Module5Screen extends StatelessWidget {
               );
             },
           ),
-          // Learn Button
-          ModuleButton(
-            text: 'LEARN',
-            backgroundColor: const Color(0xFF2196F3), // Blue
-            onPressed: () {
-              Navigator.pushNamed(context, '/module5Learn');
-            },
-          ),
           // Leaderboard Button
           ModuleButton(
             text: 'LEADERBOARD',
@@ -123,14 +83,17 @@ class Module5Screen extends StatelessWidget {
       ),
     );
     
-    return ChildScaffold(
-      title: 'Home',
-      selectedIndex: 0, // Home tab is selected
-      onNavigate: (index) => _handleNavigation(index, context),
-      showAppBar: false, // Hide app bar to show full background
+    return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundImage: backgroundImage,
-      body: content,
+      body: Stack(
+        children: [
+          // Background image
+          if (backgroundImage != null) backgroundImage,
+          
+          // Main content
+          content,
+        ],
+      ),
     );
   }
 }
