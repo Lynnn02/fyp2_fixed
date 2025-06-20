@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/screen_time_service.dart';
-import '../children_module/screen_time_lock_screen.dart';
+import '../parent_module/screen_time_lock_screen.dart';
 
 class ScreenTimeWrapper extends StatefulWidget {
   final Widget child;
@@ -82,29 +83,36 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
 
   Future<void> _checkScreenTimeLimits() async {
     if (!widget.enforceScreenTime || _userId == null) {
+      print('Screen time not enforced or no user ID');
       setState(() {
         _isLocked = false;
       });
       return;
     }
 
-    // Check if screen time is enabled
-    final prefs = await SharedPreferences.getInstance();
-    final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
-
-    if (!screenTimeEnabled) {
-      setState(() {
-        _isLocked = false;
-      });
-      return;
-    }
-
-    // Check if app should be locked
-    final isLocked = await _screenTimeService.checkScreenTimeLimits();
+    // Use the new shouldLockApp method from ScreenTimeLockScreen
+    final isLocked = await ScreenTimeLockScreen.shouldLockApp();
     
+    // Also track screen time usage
+    await ScreenTimeLockScreen.trackScreenTimeUsage();
+    
+    print('Screen time check: should lock = $isLocked');
+    
+    // Force update the lock state regardless of previous state
+    print('Setting lock state to: $isLocked (was: $_isLocked)');
     setState(() {
       _isLocked = isLocked;
     });
+    
+    // Add a delay and check again to ensure the lock is applied
+    if (isLocked) {
+      Future.delayed(const Duration(seconds: 1), () {
+        print('Re-confirming lock state after delay');
+        setState(() {
+          _isLocked = true;
+        });
+      });
+    }
   }
 
   void _handleUnlock() {
@@ -117,17 +125,38 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized) {
-      return const Scaffold(
-        body: Center(
+      return const Material(
+        child: Center(
           child: CircularProgressIndicator(),
         ),
       );
     }
 
     if (_isLocked && widget.enforceScreenTime) {
-      return ScreenTimeLockScreen(
-        userId: _userId ?? '',
-        onUnlock: _handleUnlock,
+      print('Screen time lock active, showing lock screen');
+      
+      // Create a new MaterialApp with proper localizations for the lock screen
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        // Use a fresh theme instead of inheriting to avoid TextStyle inheritance issues
+        theme: ThemeData(
+          primarySwatch: Colors.orange,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+          // Ensure text styles have consistent inheritance
+          textTheme: const TextTheme().apply(bodyColor: Colors.black87, displayColor: Colors.black87),
+        ),
+        localizationsDelegates: const [
+          DefaultMaterialLocalizations.delegate,
+          DefaultWidgetsLocalizations.delegate,
+          DefaultCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en', 'US'),
+        ],
+        home: ScreenTimeLockScreen(
+          userId: _userId ?? '',
+          onUnlock: _handleUnlock,
+        ),
       );
     }
 

@@ -3,6 +3,65 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
+import 'dart:convert';
+
+/// Helper class to manage screen time settings and checks
+/// This can be used from anywhere in the app
+class ScreenTimeManager {
+  /// Check if the app should be locked based on current settings
+  static Future<bool> shouldLockApp() async {
+    return ScreenTimeLockScreen.shouldLockApp();
+  }
+  
+  /// Track screen time usage (call this periodically)
+  static Future<void> trackUsage() async {
+    return ScreenTimeLockScreen.trackScreenTimeUsage();
+  }
+  
+  /// Set up screen time settings
+  static Future<void> setupScreenTime({
+    required bool enabled,
+    required int startHour,
+    required int startMinute,
+    required int endHour,
+    required int endMinute,
+    required List<bool> allowedDays,
+    required double maxHoursPerDay,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('screenTimeEnabled', enabled);
+    await prefs.setInt('startHour', startHour);
+    await prefs.setInt('startMinute', startMinute);
+    await prefs.setInt('endHour', endHour);
+    await prefs.setInt('endMinute', endMinute);
+    await prefs.setString('allowedDays', allowedDays.map((allowed) => allowed ? '1' : '0').join(','));
+    await prefs.setDouble('maxHoursPerDay', maxHoursPerDay);
+  }
+  
+  /// Get current screen time settings
+  static Future<Map<String, dynamic>> getSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('screenTimeEnabled') ?? false;
+    final startHour = prefs.getInt('startHour') ?? 8;
+    final startMinute = prefs.getInt('startMinute') ?? 0;
+    final endHour = prefs.getInt('endHour') ?? 20;
+    final endMinute = prefs.getInt('endMinute') ?? 0;
+    final allowedDaysString = prefs.getString('allowedDays') ?? '1,1,1,1,1,1,1';
+    final allowedDays = allowedDaysString.split(',').map((day) => day == '1').toList();
+    final maxHoursPerDay = prefs.getDouble('maxHoursPerDay') ?? 2.0;
+    final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
+    
+    return {
+      'enabled': enabled,
+      'startTime': TimeOfDay(hour: startHour, minute: startMinute),
+      'endTime': TimeOfDay(hour: endHour, minute: endMinute),
+      'allowedDays': allowedDays,
+      'maxHoursPerDay': maxHoursPerDay,
+      'usedMinutesToday': usedMinutesToday,
+    };
+  }
+}
 
 class ScreenTimeLockScreen extends StatefulWidget {
   final String userId;
@@ -13,6 +72,149 @@ class ScreenTimeLockScreen extends StatefulWidget {
     required this.userId,
     required this.onUnlock,
   }) : super(key: key);
+  
+  /// Static method to check if the app should be locked based on screen time settings
+  /// Returns true if the app should be locked, false otherwise
+  static Future<bool> shouldLockApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
+    
+    // If screen time is not enabled, app should not be locked
+    if (!screenTimeEnabled) {
+      print('Screen time not enabled, not locking');
+      return false;
+    }
+    
+    // Check for override first
+    final overrideUntilStr = prefs.getString('screenTimeOverrideUntil');
+    if (overrideUntilStr != null && overrideUntilStr.isNotEmpty) {
+      try {
+        final overrideUntil = DateTime.parse(overrideUntilStr);
+        final now = DateTime.now();
+        
+        if (now.isBefore(overrideUntil)) {
+          // Override is still active, don't lock the app
+          print('Screen time override active until ${DateFormat('HH:mm').format(overrideUntil)}');
+          return false;
+        } else {
+          // Override has expired, clear it
+          await prefs.remove('screenTimeOverrideUntil');
+          print('Screen time override has expired');
+        }
+      } catch (e) {
+        // Invalid override time format, clear it
+        await prefs.remove('screenTimeOverrideUntil');
+        print('Invalid screen time override format: $e');
+      }
+    }
+    
+    // Check if we're within allowed hours
+    final startHour = prefs.getInt('startHour') ?? 8;
+    final startMinute = prefs.getInt('startMinute') ?? 0;
+    final endHour = prefs.getInt('endHour') ?? 20;
+    final endMinute = prefs.getInt('endMinute') ?? 0;
+    
+    final now = DateTime.now();
+    final currentTime = TimeOfDay.fromDateTime(now);
+    
+    // Convert to minutes for easier comparison
+    final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+    final startMinutes = startHour * 60 + startMinute;
+    final endMinutes = endHour * 60 + endMinute;
+    
+    print('Time check: current=$currentMinutes, allowed=$startMinutes-$endMinutes');
+    
+    // Check if current time is outside allowed hours
+    if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
+      print('Outside allowed hours: current=$currentMinutes, allowed=$startMinutes-$endMinutes');
+      return true; // Lock the app - outside allowed hours
+    }
+    
+    // Check if today is an allowed day
+    final allowedDaysString = prefs.getString('allowedDays') ?? '1,1,1,1,1,1,1';
+    final allowedDays = allowedDaysString.split(',').map((day) => day == '1').toList();
+    final dayOfWeek = now.weekday % 7; // 0 = Sunday, 1 = Monday, etc.
+    
+    if (allowedDays.length > dayOfWeek && !allowedDays[dayOfWeek]) {
+      print('Not allowed on day ${dayOfWeek}');
+      return true; // Lock the app - not an allowed day
+    }
+    
+    // Check restricted time periods
+    final restrictedPeriodsJson = prefs.getString('restrictedPeriods') ?? '[]';
+    if (restrictedPeriodsJson.isNotEmpty && restrictedPeriodsJson != '[]') {
+      try {
+        final List<dynamic> restrictedPeriods = jsonDecode(restrictedPeriodsJson);
+        for (final period in restrictedPeriods) {
+          final startHour = period['startHour'] as int;
+          final startMinute = period['startMinute'] as int;
+          final endHour = period['endHour'] as int;
+          final endMinute = period['endMinute'] as int;
+          
+          final restrictedStartMinutes = startHour * 60 + startMinute;
+          final restrictedEndMinutes = endHour * 60 + endMinute;
+          
+          // Check if current time is within a restricted period
+          if (currentMinutes >= restrictedStartMinutes && currentMinutes <= restrictedEndMinutes) {
+            print('In restricted period: $restrictedStartMinutes-$restrictedEndMinutes');
+            return true;
+          }
+        }
+      } catch (e) {
+        print('Error parsing restricted periods: $e');
+      }
+    }
+    
+    // Check if daily time limit is reached
+    final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
+    final maxHoursPerDay = prefs.getDouble('maxHoursPerDay') ?? 2.0;
+    final maxMinutesPerDay = (maxHoursPerDay * 60).toInt();
+    
+    if (usedMinutesToday >= maxMinutesPerDay) {
+      print('Daily limit reached: used=$usedMinutesToday, max=$maxMinutesPerDay');
+      return true; // Lock the app - daily limit reached
+    }
+    
+    // Update the last active time for tracking usage
+    final lastActiveDate = prefs.getString('lastActiveDate') ?? '';
+    final today = DateFormat('yyyy-MM-dd').format(now);
+    
+    // If it's a new day, reset the used time
+    if (lastActiveDate != today) {
+      await prefs.setInt('screenTimeUsedToday', 0);
+      await prefs.setString('lastActiveDate', today);
+    }
+    
+    // If we get here, the app shouldn't be locked
+    return false;
+  }
+  
+  /// Static method to track screen time usage
+  /// Should be called periodically while the app is in use
+  static Future<void> trackScreenTimeUsage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
+    
+    if (!screenTimeEnabled) return;
+    
+    final now = DateTime.now();
+    final today = DateFormat('yyyy-MM-dd').format(now);
+    final lastActiveDate = prefs.getString('lastActiveDate') ?? '';
+    
+    // If it's a new day, reset the used time
+    if (lastActiveDate != today) {
+      await prefs.setInt('screenTimeUsedToday', 0);
+      await prefs.setString('lastActiveDate', today);
+      return;
+    }
+    
+    // Increment used time (1 minute)
+    final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
+    await prefs.setInt('screenTimeUsedToday', usedMinutesToday + 1);
+    await prefs.setString('lastActiveDate', today);
+    
+    print('Screen time used today: ${usedMinutesToday + 1} minutes');
+  }
 
   @override
   State<ScreenTimeLockScreen> createState() => _ScreenTimeLockScreenState();
@@ -25,22 +227,64 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
   String _errorMessage = '';
   String _lockReason = '';
   DateTime? _nextAvailableTime;
+  Timer? _screenTimeTracker;
+  Timer? _lockChecker;
   
   @override
   void initState() {
     super.initState();
     _determineLockReason();
+    
+    // Set up a timer to track screen time usage (every minute)
+    _screenTimeTracker = Timer.periodic(const Duration(minutes: 1), (timer) {
+      ScreenTimeLockScreen.trackScreenTimeUsage();
+    });
+    
+    // Set up a timer to check if the app should be locked (every 30 seconds)
+    _lockChecker = Timer.periodic(const Duration(seconds: 30), (timer) async {
+      final shouldLock = await ScreenTimeLockScreen.shouldLockApp();
+      if (shouldLock) {
+        // If the app should be locked but we're on the lock screen, update the reason
+        _determineLockReason();
+      }
+    });
   }
   
   @override
   void dispose() {
     _passwordController.dispose();
+    _screenTimeTracker?.cancel();
+    _lockChecker?.cancel();
     super.dispose();
   }
   
   Future<void> _determineLockReason() async {
     final prefs = await SharedPreferences.getInstance();
     final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
+    
+    // Check for override first
+    final overrideUntilStr = prefs.getString('screenTimeOverrideUntil');
+    if (overrideUntilStr != null && overrideUntilStr.isNotEmpty) {
+      try {
+        final overrideUntil = DateTime.parse(overrideUntilStr);
+        final now = DateTime.now();
+        
+        if (now.isBefore(overrideUntil)) {
+          // Override is still active, unlock the app
+          print('Screen time override active until ${DateFormat('HH:mm').format(overrideUntil)}');
+          widget.onUnlock();
+          return;
+        } else {
+          // Override has expired, clear it
+          await prefs.remove('screenTimeOverrideUntil');
+          print('Screen time override has expired');
+        }
+      } catch (e) {
+        // Invalid override time format, clear it
+        await prefs.remove('screenTimeOverrideUntil');
+        print('Invalid screen time override format: $e');
+      }
+    }
     
     if (!screenTimeEnabled) {
       setState(() {
@@ -110,6 +354,46 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
       return;
     }
     
+    // Check restricted time periods
+    final restrictedPeriodsJson = prefs.getString('restrictedPeriods') ?? '[]';
+    if (restrictedPeriodsJson.isNotEmpty && restrictedPeriodsJson != '[]') {
+      try {
+        final List<dynamic> restrictedPeriods = jsonDecode(restrictedPeriodsJson);
+        for (final period in restrictedPeriods) {
+          final startHour = period['startHour'] as int;
+          final startMinute = period['startMinute'] as int;
+          final endHour = period['endHour'] as int;
+          final endMinute = period['endMinute'] as int;
+          
+          final restrictedStartMinutes = startHour * 60 + startMinute;
+          final restrictedEndMinutes = endHour * 60 + endMinute;
+          
+          // Check if current time is within a restricted period
+          if (currentMinutes >= restrictedStartMinutes && currentMinutes <= restrictedEndMinutes) {
+            print('In restricted period: $restrictedStartMinutes-$restrictedEndMinutes');
+            
+            // Format the restricted period times for display
+            final restrictedStartTime = TimeOfDay(hour: startHour, minute: startMinute);
+            final restrictedEndTime = TimeOfDay(hour: endHour, minute: endMinute);
+            
+            setState(() {
+              _lockReason = 'App is locked during restricted hours (${_formatTime(restrictedStartTime)} - ${_formatTime(restrictedEndTime)}).';
+              _nextAvailableTime = DateTime(
+                now.year,
+                now.month,
+                now.day,
+                endHour,
+                endMinute,
+              );
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        print('Error parsing restricted periods: $e');
+      }
+    }
+    
     // Check if daily time limit is reached
     final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
     final maxHoursPerDay = prefs.getDouble('maxHoursPerDay') ?? 2.0;
@@ -122,10 +406,8 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
       return;
     }
     
-    // If we get here, the app shouldn't be locked
-    setState(() {
-      _lockReason = 'App is locked by parent.';
-    });
+    // If we get here, the app should be unlocked
+    widget.onUnlock();
   }
   
   String _formatTime(TimeOfDay time) {
@@ -350,7 +632,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Please enter your parent IC number to unlock',
+                          'Please enter your parent IC Number to unlock',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.grey,
@@ -365,7 +647,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.grey.shade100,
-                              hintText: 'Enter parent IC number',
+                              hintText: 'Enter parent password',
                               prefixIcon: const Icon(Icons.person),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -375,7 +657,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your IC number';
+                                return 'Please enter your IC number ';
                               }
                               return null;
                             },

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class ScreenTimeScreen extends StatefulWidget {
   final String childId;
@@ -20,6 +21,9 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 20, minute: 0);
   List<bool> _allowedDays = List.filled(7, true); // Sun, Mon, Tue, Wed, Thu, Fri, Sat
+  
+  // Restricted time periods - each period has startHour, startMinute, endHour, endMinute
+  List<Map<String, int>> _restrictedPeriods = [];
   
   final List<String> _dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
@@ -64,7 +68,42 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           if (allowedDays != null) {
             _allowedDays = allowedDays.map((day) => day as bool).toList();
           }
+          
+          // Parse restricted periods
+          final restrictedPeriods = data['restrictedPeriods'] as List<dynamic>?;
+          if (restrictedPeriods != null) {
+            _restrictedPeriods = restrictedPeriods.map((period) {
+              final periodMap = period as Map<String, dynamic>;
+              return {
+                'startHour': periodMap['startHour'] as int,
+                'startMinute': periodMap['startMinute'] as int,
+                'endHour': periodMap['endHour'] as int,
+                'endMinute': periodMap['endMinute'] as int,
+              };
+            }).toList();
+          }
         });
+      }
+      
+      // Also load from SharedPreferences for local settings
+      final prefs = await SharedPreferences.getInstance();
+      final restrictedPeriodsJson = prefs.getString('restrictedPeriods');
+      if (restrictedPeriodsJson != null && restrictedPeriodsJson.isNotEmpty) {
+        try {
+          final List<dynamic> periods = jsonDecode(restrictedPeriodsJson);
+          setState(() {
+            _restrictedPeriods = periods.map((period) {
+              return {
+                'startHour': period['startHour'] as int,
+                'startMinute': period['startMinute'] as int,
+                'endHour': period['endHour'] as int,
+                'endMinute': period['endMinute'] as int,
+              };
+            }).toList();
+          });
+        } catch (e) {
+          print('Error parsing restricted periods: $e');
+        }
       }
     } catch (e) {
       print('Error loading screen time settings: $e');
@@ -93,6 +132,7 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         'endHour': _endTime.hour,
         'endMinute': _endTime.minute,
         'allowedDays': _allowedDays,
+        'restrictedPeriods': _restrictedPeriods,
         'lastUpdated': FieldValue.serverTimestamp(),
       });
       
@@ -108,6 +148,10 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       // Save allowed days as a string (comma-separated booleans)
       final allowedDaysString = _allowedDays.map((day) => day ? '1' : '0').join(',');
       await prefs.setString('allowedDays', allowedDaysString);
+      
+      // Save restricted periods as JSON string
+      final restrictedPeriodsJson = jsonEncode(_restrictedPeriods);
+      await prefs.setString('restrictedPeriods', restrictedPeriodsJson);
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Screen time settings saved')),
@@ -145,6 +189,91 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
         _endTime = picked;
       });
     }
+  }
+  
+  Future<void> _addRestrictedPeriod() async {
+    TimeOfDay startTime = const TimeOfDay(hour: 12, minute: 0);
+    TimeOfDay endTime = const TimeOfDay(hour: 13, minute: 0);
+    
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Restricted Time Period'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('During this time period, the app will be locked even if it is within allowed hours.'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('Start: '),
+                  TextButton(
+                    onPressed: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: startTime,
+                      );
+                      if (picked != null) {
+                        setDialogState(() {
+                          startTime = picked;
+                        });
+                      }
+                    },
+                    child: Text(_formatTimeOfDay(startTime)),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  const Text('End: '),
+                  TextButton(
+                    onPressed: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: endTime,
+                      );
+                      if (picked != null) {
+                        setDialogState(() {
+                          endTime = picked;
+                        });
+                      }
+                    },
+                    child: Text(_formatTimeOfDay(endTime)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _restrictedPeriods.add({
+                    'startHour': startTime.hour,
+                    'startMinute': startTime.minute,
+                    'endHour': endTime.hour,
+                    'endMinute': endTime.minute,
+                  });
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _removeRestrictedPeriod(int index) {
+    setState(() {
+      _restrictedPeriods.removeAt(index);
+    });
   }
   
   String _formatTimeOfDay(TimeOfDay time) {
@@ -274,11 +403,74 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
           
           const SizedBox(height: 16),
           
+          // Restricted Time Periods
+          _buildSectionCard(
+            title: 'Restricted Time Periods',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text(
+                    'Add specific time periods when the app should be locked, even during allowed hours. '
+                    'Useful for meal times, homework time, etc.',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_restrictedPeriods.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text('No restricted periods set', style: TextStyle(fontStyle: FontStyle.italic)),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _restrictedPeriods.length,
+                    itemBuilder: (context, index) {
+                      final period = _restrictedPeriods[index];
+                      final startTime = TimeOfDay(hour: period['startHour']!, minute: period['startMinute']!);
+                      final endTime = TimeOfDay(hour: period['endHour']!, minute: period['endMinute']!);
+                      
+                      return ListTile(
+                        leading: const Icon(Icons.block, color: Colors.red),
+                        title: Text('Restricted Period ${index + 1}'),
+                        subtitle: Text('${_formatTimeOfDay(startTime)} - ${_formatTimeOfDay(endTime)}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () => _removeRestrictedPeriod(index),
+                        ),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 8),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: _addRestrictedPeriod,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Restricted Period'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
           // Allowed Days Settings
           _buildSectionCard(
             title: 'Allowed Days',
             child: Column(
               children: [
+                const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text('Select days when the app can be used:'),
+                ),
                 Wrap(
                   spacing: 8,
                   children: List.generate(7, (index) {
@@ -301,7 +493,6 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
             ),
           ),
           
-          const SizedBox(height: 16),
           
           // Lock Override
           _buildSectionCard(
