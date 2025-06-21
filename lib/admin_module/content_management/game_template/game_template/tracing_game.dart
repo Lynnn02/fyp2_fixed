@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../widgets/activity_completion_screen.dart';
+import '../../../../widgets/activity_completion_screen.dart';
 
 class TracingGame extends StatefulWidget {
   final String chapterName;

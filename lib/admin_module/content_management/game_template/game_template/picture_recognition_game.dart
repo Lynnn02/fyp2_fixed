@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
-import '../services/score_service.dart';
+import '../../../../services/score_service.dart';
 
 class PictureRecognitionGame extends StatefulWidget {
   final String chapterName;

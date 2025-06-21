@@ -11,14 +11,14 @@ import '../../services/gemini_service.dart';
 import '../../widgets/admin_app_bar.dart';
 import '../../widgets/admin_scaffold.dart';
 import '../../widgets/admin_ui_style.dart';
-import '../../game_template/matching_game.dart';
-import '../../game_template/counting_game.dart';
-import '../../game_template/puzzle_game.dart';
-import '../../game_template/tracing_game.dart';
-import '../../game_template/sorting_game.dart';
+import 'game_template/game_template/matching_game.dart';
+import 'game_template/game_template/counting_game.dart';
+import 'game_template/game_template/puzzle_game.dart';
+import 'game_template/game_template/tracing_game.dart';
+import 'game_template/game_template/sorting_game.dart';
 import '../../models/game.dart';
 
-import 'note_template_selection_screen.dart';
+import 'note_template/note_template_selection_screen.dart';
 import 'note_template/note_template_preview_screen.dart';
 
 class ContentManagementScreen extends StatefulWidget {

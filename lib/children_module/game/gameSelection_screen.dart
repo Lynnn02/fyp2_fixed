@@ -3,11 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/subject.dart';
 import '../../models/game.dart';
 import '../../services/content_service.dart';
-import '../../game_template/matching_game.dart';
-import '../../game_template/counting_game.dart';
-import '../../game_template/puzzle_game.dart';
-import '../../game_template/tracing_game.dart';
-import '../../game_template/sorting_game.dart';
+import '../../admin_module/content_management/game_template/game_template/matching_game.dart';
+import '../../admin_module/content_management/game_template/game_template/counting_game.dart';
+import '../../admin_module/content_management/game_template/game_template/puzzle_game.dart';
+import '../../admin_module/content_management/game_template/game_template/tracing_game.dart';
+import '../../admin_module/content_management/game_template/game_template/sorting_game.dart';
 
 class GameSelectionScreen extends StatefulWidget {
   final Chapter chapter;

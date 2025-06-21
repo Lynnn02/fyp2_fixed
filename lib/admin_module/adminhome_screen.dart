@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_scaffold.dart';
 import 'user_management/user_list_screen.dart';
-import 'analytic/analytic_screen.dart';
+import 'analytic/new_analytic_screen.dart';
 import 'content_management/content_management_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
@@ -111,7 +111,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AnalyticScreen(),
+        builder: (context) => AnalyticScreen(
+          selectedIndex: 3, // Analytics is typically the 4th tab (index 3)
+          onNavigate: _handleNavigation,
+        ),
       ),
     );
   }

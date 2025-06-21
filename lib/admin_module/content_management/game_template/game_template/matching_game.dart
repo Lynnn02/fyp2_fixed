@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
-import '../services/score_service.dart';
-import '../widgets/activity_completion_screen.dart';
+import '../../../../services/score_service.dart';
+import '../../../../widgets/activity_completion_screen.dart';
 
 class MatchingGame extends StatefulWidget {
   final String chapterName;

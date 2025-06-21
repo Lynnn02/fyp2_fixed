@@ -8,7 +8,7 @@ class ActivityCompletionScreen extends StatefulWidget {
   final String activityType; // 'game', 'note', 'video'
   final String activityName;
   final String subject;
-  final int points;
+  final int points; // Will be overridden for notes and videos
   final int studyMinutes;
   final String userId;
   final VoidCallback? onContinue;
@@ -213,38 +213,37 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
 
   @override
   Widget build(BuildContext context) {
-    // Determine star count based on points
-    int starCount = 0;
-    if (widget.points >= 80) {
-      starCount = 5;
-    } else if (widget.points >= 60) {
-      starCount = 4;
-    } else if (widget.points >= 40) {
-      starCount = 3;
-    } else if (widget.points >= 20) {
-      starCount = 2;
-    } else {
-      starCount = 1;
-    }
+    // Always show 5 stars for notes and video activities
+    // For games, determine star count based on points
+    late int starCount;
+    late int displayPoints;
+    late String message;
+    late Color primaryColor;
+    late Color secondaryColor;
     
-    // Get motivational message based on star count
-    String message = '';
-    switch (starCount) {
-      case 5:
-        message = 'Excellent job! You\'re a superstar!';
-        break;
-      case 4:
-        message = 'Great work! Keep it up!';
-        break;
-      case 3:
-        message = 'Good job! You\'re making progress!';
-        break;
-      case 2:
-        message = 'Nice effort! Keep practicing!';
-        break;
-      case 1:
-        message = 'Good try! You\'ll do better next time!';
-        break;
+    // Calculate stars, points, and colors based on activity type
+    if (widget.activityType == 'game') {
+      // For games, calculate stars based on actual points
+      int points = widget.points;
+      starCount = (points / 10).round().clamp(0, 5);
+      displayPoints = points;
+      primaryColor = Colors.indigo;
+      secondaryColor = Colors.indigo[100]!;
+      
+      if (starCount >= 4) {
+        message = 'Excellent job! You earned $starCount stars!';
+      } else if (starCount >= 2) {
+        message = 'Good effort! You earned $starCount stars!';
+      } else {
+        message = 'Keep practicing! You earned $starCount stars!';
+      }
+    } else {
+      // For notes and videos, always show 5 stars and 50 points
+      starCount = 5;
+      displayPoints = 50;
+      primaryColor = Colors.purple;
+      secondaryColor = Colors.purple[100]!;
+      message = 'Excellent job! You\'ve completed this learning activity!';
     }
 
     // Use a Stack with a GestureDetector to capture all touch events
@@ -265,8 +264,9 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
           backgroundColor: Colors.transparent,
           body: Center(
             child: Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              padding: const EdgeInsets.all(24),
+              width: MediaQuery.of(context).size.width * 0.8,
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -293,8 +293,22 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.purple.shade100,
+                        gradient: LinearGradient(
+                          colors: [
+                            primaryColor is MaterialColor ? primaryColor[300]! : primaryColor,
+                            secondaryColor,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (primaryColor is MaterialColor ? primaryColor[200]! : primaryColor).withOpacity(0.5),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -312,7 +326,7 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Colors.purple.shade700,
+                              color: primaryColor is MaterialColor ? primaryColor[700]! : primaryColor,
                             ),
                           ),
                         ],
@@ -334,99 +348,207 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(5, (index) {
-                        return Icon(
-                          index < starCount ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 40,
+                        return TweenAnimationBuilder(
+                          duration: Duration(milliseconds: 400 + (index * 120)),
+                          tween: Tween<double>(begin: 0.0, end: 1.0),
+                          builder: (context, double value, child) {
+                            return Transform.scale(
+                              scale: value,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
+                                child: Icon(
+                                  index < starCount ? Icons.star : Icons.star_border,
+                                  color: index < starCount ? Colors.amber : Colors.grey.shade400,
+                                  size: 40,
+                                ),
+                              ),
+                            );
+                          },
                         );
                       }),
                     ),
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   
                   // Motivational message
-                  Text(
-                    message,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  TweenAnimationBuilder(
+                    duration: const Duration(milliseconds: 800),
+                    tween: Tween<double>(begin: 0.0, end: 1.0),
+                    builder: (context, double value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.amber.shade200, width: 2),
+                      ),
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber.shade800,
+                          height: 1.3,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
                   ),
                   
                   const SizedBox(height: 24),
                   
                   // Stats
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildStatRow(
-                          icon: Icons.star,
-                          label: 'Points Earned',
-                          value: '${widget.points}',
-                          color: Colors.amber,
+                  TweenAnimationBuilder(
+                    duration: const Duration(milliseconds: 1000),
+                    tween: Tween<double>(begin: 0.0, end: 1.0),
+                    builder: (context, double value, child) {
+                      return Transform.translate(
+                        offset: Offset(0, 20 * (1 - value)),
+                        child: Opacity(
+                          opacity: value,
+                          child: child,
                         ),
-                        const SizedBox(height: 8),
-                        _buildStatRow(
-                          icon: Icons.timer,
-                          label: 'Study Time',
-                          value: '${widget.studyMinutes} min',
-                          color: Colors.blue,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white,
+                            Colors.blue.shade50,
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
                         ),
-                        const SizedBox(height: 8),
-                        _buildStatRow(
-                          icon: Icons.book,
-                          label: 'Subject',
-                          value: widget.subject,
-                          color: Colors.green,
-                        ),
-                      ],
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.blue.shade100, width: 1),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildStatRow(
+                            icon: Icons.star,
+                            label: 'Points Earned',
+                            value: '$displayPoints',
+                            color: Colors.amber.shade600,
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Divider(height: 1),
+                          ),
+                          _buildStatRow(
+                            icon: Icons.timer,
+                            label: 'Study Time',
+                            value: '${widget.studyMinutes} min',
+                            color: Colors.blue.shade600,
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Divider(height: 1),
+                          ),
+                          _buildStatRow(
+                            icon: Icons.book,
+                            label: 'Subject',
+                            value: widget.subject,
+                            color: Colors.green.shade600,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   
                   // Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      if (widget.onRestart != null)
-                        ElevatedButton.icon(
-                          onPressed: widget.onRestart,
-                          icon: const Icon(Icons.replay),
-                          label: const Text('Try Again'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.amber.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                  TweenAnimationBuilder(
+                    duration: const Duration(milliseconds: 1200),
+                    tween: Tween<double>(begin: 0.0, end: 1.0),
+                    builder: (context, double value, child) {
+                      return Transform.translate(
+                        offset: Offset(0, 30 * (1 - value)),
+                        child: Opacity(
+                          opacity: value,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (widget.onRestart != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: ElevatedButton.icon(
+                              onPressed: widget.onRestart,
+                              icon: const Icon(Icons.replay),
+                              label: const Text('Try Again'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.amber.shade600,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                elevation: 3,
+                              ),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: ElevatedButton.icon(
+                            onPressed: widget.onContinue ?? () {
+                              // For games, navigate back to game list
+                              if (widget.activityType == 'game') {
+                                // Check if we're in admin module by looking at the route path
+                                final currentRoute = ModalRoute.of(context);
+                                final isAdminModule = currentRoute?.settings.name?.contains('admin') ?? false;
+                                
+                                if (isAdminModule) {
+                                  // In admin module, just pop back to the game list
+                                  Navigator.of(context).pop();
+                                } else {
+                                  // In student module, pop back to the subject list screen
+                                  Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == '/subjects');
+                                }
+                              } else {
+                                // For notes/videos, just pop once
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            icon: const Icon(Icons.arrow_forward),
+                            label: const Text('Continue'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              elevation: 3,
                             ),
                           ),
                         ),
-                      ElevatedButton.icon(
-                        onPressed: widget.onContinue ?? () {
-                          Navigator.of(context).pop();
-                        },
-                        icon: const Icon(Icons.arrow_forward),
-                        label: const Text('Continue'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -445,22 +567,38 @@ class _ActivityCompletionScreenState extends State<ActivityCompletionScreen> wit
   }) {
     return Row(
       children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        const SizedBox(width: 10),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
-            color: Colors.black87,
+            color: Colors.grey.shade700,
+            fontWeight: FontWeight.w500,
           ),
         ),
         const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.3), width: 1),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color.withOpacity(0.8),
+            ),
           ),
         ),
       ],

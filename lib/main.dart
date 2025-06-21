@@ -28,7 +28,7 @@ import 'children_module/Game/gameSelection_screen.dart';
 import 'admin_module/adminhome_screen.dart';
 import 'admin_module/user_management/user_list_screen.dart';
 import 'admin_module/content_management/content_management_screen.dart';
-import 'admin_module/analytic/analytic_screen.dart';
+import 'admin_module/analytic/new_analytic_screen.dart';
 import 'models/subject.dart';
 import 'models/note_content.dart';
 import 'services/screen_time_wrapper.dart';
@@ -75,7 +75,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ScreenTimeWrapper(
+      enforceScreenTime: true,
+      child: MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Little Explorers',
       theme: ThemeData(
@@ -90,11 +92,6 @@ class MyApp extends StatelessWidget {
       supportedLocales: const [
         Locale('en', 'US'),
       ],
-      home: ScreenTimeWrapper(
-        enforceScreenTime: true,
-        child: MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Little Explorers',
       initialRoute: '/splash',
       routes: {
         '/splash': (context) => const SplashScreen(),
@@ -277,9 +274,24 @@ class MyApp extends StatelessWidget {
         '/adminHome': (context) => const AdminHomeScreen(),
         '/userManagement': (context) => const UserListScreen(),
         '/contentManagement': (context) => const ContentManagementScreen(),
-        '/analytics': (context) => const AnalyticScreen(),
+        '/analytics': (context) => AnalyticScreen(
+          selectedIndex: 3, // Analytics is typically the 4th tab (index 3)
+          onNavigate: (index) {
+            // Navigate to the appropriate screen based on index
+            switch (index) {
+              case 0:
+                Navigator.pushReplacementNamed(context, '/adminHome');
+                break;
+              case 1:
+                Navigator.pushReplacementNamed(context, '/userManagement');
+                break;
+              case 2:
+                Navigator.pushReplacementNamed(context, '/contentManagement');
+                break;
+            }
+          },
+        ),
       },
-    ),
     ),
     );
   }

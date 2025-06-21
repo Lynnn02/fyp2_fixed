@@ -3,8 +3,8 @@ import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
-import '../services/score_service.dart';
-import '../services/gemini_service.dart'; // For dynamic content generation
+import '../../../../services/score_service.dart';
+import '../../../../services/gemini_service.dart'; // For dynamic content generation
 
 class AnimalSoundsGame extends StatefulWidget {
   final String chapterName;
