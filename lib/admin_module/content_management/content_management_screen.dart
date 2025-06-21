@@ -787,6 +787,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         builder: (context) => NoteTemplateSelectionScreen(
           subject: subject,
           chapter: chapter,
+          age: _selectedAge,
         ),
       ),
     );

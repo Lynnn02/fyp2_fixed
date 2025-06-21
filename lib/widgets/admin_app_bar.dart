@@ -83,7 +83,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                       
                       // Navigate to login screen and clear navigation history
                       Navigator.of(context).pushNamedAndRemoveUntil(
-                        '/', // Use root route which should be the login screen
+                        '/login', // Use login route explicitly
                         (Route<dynamic> route) => false,
                       );
                     },

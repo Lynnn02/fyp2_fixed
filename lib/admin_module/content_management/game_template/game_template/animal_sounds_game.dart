@@ -3,8 +3,13 @@ import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../services/score_service.dart';
 import '../../../../services/gemini_service.dart'; // For dynamic content generation
+import '../../../../services/gemini_service_extension.dart'; // For flashcard functionality
+import '../../../../widgets/flashcard_widget.dart'; // Import the flashcard widget
+import '../../../../models/subject.dart';
+import '../../../../models/note_content.dart';
 
 class AnimalSoundsGame extends StatefulWidget {
   final String chapterName;
@@ -32,6 +37,12 @@ class AnimalSoundsGame extends StatefulWidget {
   _AnimalSoundsGameState createState() => _AnimalSoundsGameState();
 }
 
+// Game modes enum to switch between different game types
+enum GameMode {
+  animalSounds,
+  flashcards
+}
+
 class _AnimalSoundsGameState extends State<AnimalSoundsGame> with TickerProviderStateMixin {
   // Gemini service for dynamic content
   final GeminiService _geminiService = GeminiService();
@@ -46,6 +57,9 @@ class _AnimalSoundsGameState extends State<AnimalSoundsGame> with TickerProvider
   bool _showFeedback = false;
   bool _isCorrect = false;
   bool _isPlayingSound = false;
+  
+  // Game mode state
+  GameMode _currentMode = GameMode.animalSounds; // Default to animal sounds game
   
   // Animation controllers
   late AnimationController _bounceController;
@@ -566,20 +580,108 @@ class _AnimalSoundsGameState extends State<AnimalSoundsGame> with TickerProvider
       _isGameOver = false;
       _scoreSubmitted = false;
       _showFeedback = false;
+      _setupRound();
     });
+  }
+  
+  // Build the flashcard game mode
+  Widget _buildFlashcardMode() {
+    // Create a Chapter object from the widget's chapterId and chapterName
+    final chapter = Chapter(
+      id: widget.chapterId,
+      name: widget.chapterName,
+      content: [],
+      gameId: '',
+    );
     
-    _animals.shuffle();
-    _nextAnimal();
+    // Create a Subject object from the widget's subjectId and subjectName
+    final subject = Subject(
+      id: widget.subjectId,
+      name: widget.subjectName,
+      moduleId: widget.ageGroup,
+      chapters: [],
+    );
+    
+    // Determine language based on subject name
+    String language = _determineLanguage(widget.subjectName);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Flashcards: ${widget.chapterName}'),
+        actions: [
+          // Toggle between game modes
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Switch to Animal Sounds Game',
+            onPressed: () {
+              setState(() {
+                _currentMode = GameMode.animalSounds;
+              });
+            },
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: FlashcardWidget(
+            subject: subject,
+            chapter: chapter,
+            age: widget.ageGroup,
+            language: language,
+            userId: widget.userId,
+            userName: widget.userName,
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // Determine language based on subject name
+  String _determineLanguage(String subjectName) {
+    final name = subjectName.toLowerCase();
+    
+    if (name.contains('arabic') || name.contains('iqra') || name.contains('quran')) {
+      return 'Arabic';
+    } else if (name.contains('jawi')) {
+      return 'Jawi';
+    } else if (name.contains('chinese') || name.contains('mandarin')) {
+      return 'Chinese';
+    } else if (name.contains('tamil')) {
+      return 'Tamil';
+    } else if (name.contains('hindi')) {
+      return 'Hindi';
+    } else if (name.contains('malay') || name.contains('bahasa')) {
+      return 'Malay';
+    }
+    
+    return 'English'; // Default language
   }
   
   @override
   Widget build(BuildContext context) {
+    // Determine which game mode to display
+    if (_currentMode == GameMode.flashcards) {
+      return _buildFlashcardMode();
+    }
+    
+    // Default to animal sounds game
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.subjectName}: ${widget.chapterName}'),
         backgroundColor: Colors.orange,
         elevation: 0,
         actions: [
+          // Toggle between game modes
+          IconButton(
+            icon: const Icon(Icons.style),
+            tooltip: 'Switch to Flashcards',
+            onPressed: () {
+              setState(() {
+                _currentMode = GameMode.flashcards;
+              });
+            },
+          ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Center(

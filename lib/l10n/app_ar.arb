@@ -1,0 +1,11 @@
+{
+  "@@locale": "ar",
+  "flashcardTitle": "بطاقات تعليمية",
+  "loadingFlashcards": "جاري تحميل البطاقات التعليمية...",
+  "noFlashcardsAvailable": "لا توجد بطاقات تعليمية متاحة لهذا الموضوع",
+  "tryAgain": "حاول مرة أخرى",
+  "flipCard": "انقر للقلب",
+  "nextCard": "التالي",
+  "previousCard": "السابق",
+  "cardCountOf": "البطاقة {current} من {total}"
+}

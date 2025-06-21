@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../../models/subject.dart'; // Contains both Subject and Chapter classes
 import '../../../widgets/custom_app_bar.dart';
-import 'note_template_preview_screen.dart';
+import 'enhanced_note_preview_screen.dart';
+import '../../../services/gemini_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 class NoteTemplateSelectionScreen extends StatefulWidget {
   final Subject subject;
   final Chapter chapter;
+  final int age; // Age group: 4, 5, or 6
+  final String? language; // Optional language parameter
 
   const NoteTemplateSelectionScreen({
     Key? key,
     required this.subject,
     required this.chapter,
+    required this.age,
+    this.language,
   }) : super(key: key);
 
   @override
@@ -18,157 +26,361 @@ class NoteTemplateSelectionScreen extends StatefulWidget {
 }
 
 class _NoteTemplateSelectionScreenState extends State<NoteTemplateSelectionScreen> {
-  final List<Map<String, dynamic>> _templates = [
-    {
-      'id': 'balanced',
-      'name': 'Balanced',
-      'description': 'A balanced mix of text, images, and interactive elements',
-      'icon': Icons.balance,
-      'color': Colors.blue,
-    },
-    {
-      'id': 'story',
-      'name': 'Story',
-      'description': 'Narrative style with characters and plot development',
-      'icon': Icons.book,
-      'color': Colors.purple,
-    },
-    {
-      'id': 'factual',
-      'name': 'Factual',
-      'description': 'Focus on facts and information with clear explanations',
-      'icon': Icons.info,
-      'color': Colors.green,
-    },
-    {
-      'id': 'interactive',
-      'name': 'Interactive',
-      'description': 'Engaging style with questions and activities',
-      'icon': Icons.touch_app,
-      'color': Colors.orange,
-    },
-    {
-      'id': 'visual',
-      'name': 'Visual',
-      'description': 'Highly visual with many images and minimal text',
-      'icon': Icons.image,
-      'color': Colors.red,
-    },
-  ];
+  final GeminiService _geminiService = GeminiService();
+  bool _isLoading = false;
+  String _detectedLanguage = 'en';
+  late int _selectedAge;
+  
+  @override
+  void initState() {
+    super.initState();
+    _selectedAge = widget.age;
+    _detectLanguage();
+  }
+  
+  /// Detect language based on subject name or use provided language
+  Future<void> _detectLanguage() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // First check if we have a cached language detection
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'language_${widget.subject.id}';
+      final cachedLanguage = prefs.getString(cacheKey);
+      
+      if (cachedLanguage != null) {
+        setState(() {
+          _detectedLanguage = cachedLanguage;
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // If no cached data, detect language from subject name
+      final detectedLanguage = widget.language ?? _detectLanguageFromName(widget.subject.name);
+      
+      // Cache the detected language
+      await prefs.setString(cacheKey, detectedLanguage);
+      
+      setState(() {
+        _detectedLanguage = detectedLanguage;
+        _isLoading = false;
+      });
+      
+    } catch (e) {
+      // Default to English if detection fails
+      setState(() {
+        _detectedLanguage = widget.language ?? 'en';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  /// Detect language based on subject name
+  String _detectLanguageFromName(String subjectName) {
+    final lowerSubject = subjectName.toLowerCase();
+    
+    // Detect language based on common words or patterns in subject name
+    if (lowerSubject.contains('عربي') || lowerSubject.contains('arabic')) {
+      return 'ar';
+    } else if (lowerSubject.contains('جاوي') || lowerSubject.contains('jawi')) {
+      return 'ms-Arab';
+    } else if (lowerSubject.contains('bahasa') || lowerSubject.contains('melayu')) {
+      return 'ms';
+    } else if (lowerSubject.contains('中文') || lowerSubject.contains('chinese')) {
+      return 'zh';
+    } else if (lowerSubject.contains('தமிழ்') || lowerSubject.contains('tamil')) {
+      return 'ta';
+    } else if (lowerSubject.contains('हिंदी') || lowerSubject.contains('hindi')) {
+      return 'hi';
+    }
+    
+    // Default to English
+    return 'en';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'Select Note Template',
+        title: 'Flashcard Note Settings',
         showBackButton: true,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading ? _buildLoadingState() : Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Subject: ${widget.subject.name}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Chapter: ${widget.chapter.name}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Choose a template style for your note:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ],
-            ),
+          _buildHeaderInfo(),
+          _buildAgeSelector(),
+          const SizedBox(height: 24),
+          _buildLanguageDisplay(),
+          const SizedBox(height: 32),
+          _buildGenerateButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 24),
+          Text(
+            'Analyzing content for ${widget.subject.name}: ${widget.chapter.name}...',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
           ),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.8,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: _templates.length,
-              itemBuilder: (context, index) {
-                final template = _templates[index];
-                return _buildTemplateCard(template);
-              },
-            ),
+          const SizedBox(height: 8),
+          Text(
+            'Finding the best template for age ${widget.age} learners',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.grey[700]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTemplateCard(Map<String, dynamic> template) {
-    return InkWell(
-      onTap: () => _selectTemplate(template['id']),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildHeaderInfo() {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      color: Colors.grey[100],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.subject.name,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            widget.chapter.name,
+            style: const TextStyle(fontSize: 20),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Flashcard notes will be generated with age-appropriate content:',
+            style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildAgeSelector() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Age Group:',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Icon(
-                template['icon'],
-                size: 48,
-                color: template['color'],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                template['name'],
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Text(
-                  template['description'],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ),
+              _buildAgeButton(4),
+              _buildAgeButton(5),
+              _buildAgeButton(6),
             ],
           ),
+          const SizedBox(height: 12),
+          _buildAgeDescription(),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildAgeButton(int age) {
+    final bool isSelected = _selectedAge == age;
+    final color = _getAgeColor(age);
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedAge = age;
+        });
+      },
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white,
+          border: Border.all(color: color, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '$age',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : color,
+              ),
+            ),
+            Text(
+              'years',
+              style: TextStyle(
+                fontSize: 14,
+                color: isSelected ? Colors.white : color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildAgeDescription() {
+    String description;
+    switch (_selectedAge) {
+      case 4:
+        description = '• Simple bullet points\n• Optional audio for each point\n• Large font size';
+        break;
+      case 5:
+        description = '• Short paragraphs\n• Highlighted key terms\n• 🔊 Audio play buttons';
+        break;
+      case 6:
+        description = '• Detailed paragraphs\n• Embedded mini-quizzes\n• More complex content';
+        break;
+      default:
+        description = 'Age-appropriate content will be generated';
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _getAgeColor(_selectedAge).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _getAgeColor(_selectedAge).withOpacity(0.3)),
+      ),
+      child: Text(
+        description,
+        style: const TextStyle(fontSize: 14),
+      ),
+    );
+  }
+  
+  Widget _buildLanguageDisplay() {
+    final languageName = _getLanguageDisplay(_detectedLanguage);
+    final bool isRtl = ['ar', 'ms-Arab'].contains(_detectedLanguage.split('-').first);
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Language:',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isRtl ? Icons.format_textdirection_r_to_l : Icons.format_textdirection_l_to_r,
+                  color: Colors.blue,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  languageName,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                Text(
+                  isRtl ? '(Right to Left)' : '(Left to Right)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Detected from subject name. Content will be generated in $languageName.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildGenerateButton() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton(
+        onPressed: _generateFlashcardNote,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Text(
+          'Generate Flashcard Note',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
 
-  void _selectTemplate(String templateId) {
+  Color _getAgeColor(int age) {
+    switch (age) {
+      case 4:
+        return Colors.green;
+      case 5:
+        return Colors.blue;
+      case 6:
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getLanguageDisplay(String languageCode) {
+    switch (languageCode) {
+      case 'ar':
+        return 'Arabic';
+      case 'ms-Arab':
+        return 'Jawi';
+      case 'ms':
+        return 'Malay';
+      case 'zh':
+        return 'Chinese';
+      case 'ta':
+        return 'Tamil';
+      case 'hi':
+        return 'Hindi';
+      default:
+        return 'English';
+    }
+  }
+
+  void _generateFlashcardNote() {
+    // Navigate to the enhanced note preview screen with all required parameters
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NoteTemplatePreviewScreen(
+        builder: (context) => EnhancedNotePreviewScreen(
           subject: widget.subject,
           chapter: widget.chapter,
-          templateId: templateId,
+          age: _selectedAge,
+          language: _detectedLanguage,
         ),
       ),
     );

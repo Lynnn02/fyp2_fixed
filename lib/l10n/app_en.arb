@@ -1,0 +1,23 @@
+{
+  "@@locale": "en",
+  "flashcardTitle": "Flashcards",
+  "loadingFlashcards": "Loading flashcards...",
+  "noFlashcardsAvailable": "No flashcards available for this topic",
+  "tryAgain": "Try Again",
+  "flipCard": "Tap to flip",
+  "nextCard": "Next",
+  "previousCard": "Previous",
+  "cardCountOf": "Card {current} of {total}",
+  "@cardCountOf": {
+    "placeholders": {
+      "current": {
+        "type": "int",
+        "example": "1"
+      },
+      "total": {
+        "type": "int",
+        "example": "10"
+      }
+    }
+  }
+}

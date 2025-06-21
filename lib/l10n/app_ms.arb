@@ -1,0 +1,11 @@
+{
+  "@@locale": "ms",
+  "flashcardTitle": "Kad Imbas",
+  "loadingFlashcards": "Memuatkan kad imbas...",
+  "noFlashcardsAvailable": "Tiada kad imbas tersedia untuk topik ini",
+  "tryAgain": "Cuba Lagi",
+  "flipCard": "Ketuk untuk membalik",
+  "nextCard": "Seterusnya",
+  "previousCard": "Sebelumnya",
+  "cardCountOf": "Kad {current} daripada {total}"
+}

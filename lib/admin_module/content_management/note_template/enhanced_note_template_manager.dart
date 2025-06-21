@@ -7,6 +7,74 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EnhancedNoteTemplateManager {
   final GeminiService _geminiService = GeminiService();
+  
+  // Map of chapter card rules for different subjects and chapters
+  // Format: 'subject_chapter': {count: base card count, multiplier: age multiplier, bonus: additional cards}
+  final Map<String, Map<String, dynamic>> chapterCardRules = {
+    // Math rules
+    'math_counting': {'count': 5, 'multiplier': 0.5, 'bonus': 0},
+    'math_shapes': {'count': 4, 'multiplier': 0.5, 'bonus': 1},
+    'math_numbers': {'count': 6, 'multiplier': 0.3, 'bonus': 0},
+    'math_addition': {'count': 4, 'multiplier': 0.5, 'bonus': 1},
+    'math_subtraction': {'count': 4, 'multiplier': 0.5, 'bonus': 1},
+    
+    // Science rules
+    'science_animals': {'count': 5, 'multiplier': 0.4, 'bonus': 1},
+    'science_plants': {'count': 4, 'multiplier': 0.5, 'bonus': 0},
+    'science_weather': {'count': 3, 'multiplier': 0.7, 'bonus': 0},
+    'science_body': {'count': 5, 'multiplier': 0.4, 'bonus': 1},
+    
+    // Language rules
+    'language_alphabet': {'count': 6, 'multiplier': 0.3, 'bonus': 0},
+    'language_words': {'count': 5, 'multiplier': 0.4, 'bonus': 1},
+    'language_sentences': {'count': 4, 'multiplier': 0.5, 'bonus': 0},
+    'language_stories': {'count': 3, 'multiplier': 0.7, 'bonus': 0},
+    
+    // Jawi rules
+    'jawi_huruf': {'count': 6, 'multiplier': 0.3, 'bonus': 0},
+    'jawi_harakat': {'count': 5, 'multiplier': 0.4, 'bonus': 0},
+    'jawi_words': {'count': 4, 'multiplier': 0.5, 'bonus': 1},
+    
+    // Default rule
+    'default': {'count': 4, 'multiplier': 0.5, 'bonus': 0},
+  };
+  
+  // Calculate the number of cards based on subject, chapter, and age
+  int calculateCardCount(String subject, String chapter, int age) {
+    // Normalize subject and chapter names for lookup
+    final normalizedSubject = subject.toLowerCase().trim();
+    final normalizedChapter = chapter.toLowerCase().trim();
+    
+    // Try to find exact match first
+    final String key = '${normalizedSubject}_${normalizedChapter}';
+    final Map<String, dynamic> rules = chapterCardRules[key] ?? 
+                                      chapterCardRules['default'] ?? 
+                                      {'count': 4, 'multiplier': 0.5, 'bonus': 0};
+    
+    // Calculate card count based on rules and age
+    final int baseCount = rules['count'] ?? 4;
+    final double multiplier = rules['multiplier'] ?? 0.5;
+    final int bonus = rules['bonus'] ?? 0;
+    
+    // Apply age multiplier and bonus
+    final int ageBonus = (age * multiplier).round();
+    final int totalCount = baseCount + ageBonus + bonus;
+    
+    // Ensure minimum of 3 cards and maximum of 10 cards
+    return totalCount.clamp(3, 10);
+  }
+  
+  // Determine cards per page based on screen width
+  int getCardsPerPage(double screenWidth) {
+    // Use 1 card per page on phones, 2 on tablets/larger screens
+    return screenWidth < 600 ? 1 : 2;
+  }
+  
+  // Calculate total pages needed based on card count and screen size
+  int calculateTotalPages(int cardCount, double screenWidth) {
+    final cardsPerPage = getCardsPerPage(screenWidth);
+    return (cardCount / cardsPerPage).ceil();
+  }
 
   // Age-specific font sizes
   double getFontSizeForAge(int age, {bool isTitle = false}) {
@@ -133,7 +201,13 @@ class EnhancedNoteTemplateManager {
     required String subject,
     required String chapter,
     required int age,
+    double screenWidth = 400, // Default to phone width if not provided
   }) async {
+    // Calculate card count and pages
+    final int cardCount = calculateCardCount(subject, chapter, age);
+    final int cardsPerPage = getCardsPerPage(screenWidth);
+    final int totalPages = calculateTotalPages(cardCount, screenWidth);
+    
     // Prepare the prompt based on template type and age
     String prompt = _buildPromptForTemplate(
       templateId: templateId,
@@ -141,268 +215,117 @@ class EnhancedNoteTemplateManager {
       chapter: chapter,
       age: age,
     );
-
+    
     try {
       // Generate content using Gemini
-      final response = await _geminiService.generateNoteContent(prompt);
+      final response = await _geminiService.generateNoteContent(
+        subject: subject,
+        chapter: chapter,
+        age: age,
+        templateType: templateId,
+      );
+      
+      // Process the response directly
+      if (response == null) {
+        throw Exception('Failed to generate note content');
+      }
       
       // Process the response into structured note content
-      return _processGeminiResponse(response, templateId, age);
+      Map<String, dynamic> processedContent = _processGeminiResponse(response, templateId, age);
+      
+      // Add paging information to the response
+      processedContent['cardCount'] = cardCount;
+      processedContent['cardsPerPage'] = cardsPerPage;
+      processedContent['totalPages'] = totalPages;
+      
+      return processedContent;
     } catch (e) {
       print('Error generating note content: $e');
       return {
-        'title': 'Error generating content',
-        'elements': [],
+        'title': 'Error: Could not generate content',
+        'elements': [
+          {
+            'type': 'text',
+            'content': 'There was an error generating the note content. Please try again later.',
+            'isBold': false,
+            'isItalic': true,
+          }
+        ],
+        'cardCount': cardCount,
+        'cardsPerPage': cardsPerPage,
+        'totalPages': totalPages,
       };
     }
   }
 
-  // Build prompt for different template types
+  // Build a prompt for flashcard notes
   String _buildPromptForTemplate({
     required String templateId,
     required String subject,
     required String chapter,
     required int age,
   }) {
-    final pageLimit = getPageLimitForAge(age);
     final vocabularyLevel = getVocabularyLevelForAge(age);
     final sentenceComplexity = getSentenceComplexityForAge(age);
-    final interactiveElements = getInteractiveElementsForAge(age).join(", ");
+    final interactiveElements = getInteractiveElementsForAge(age).join(', ');
     final imageRatio = (getImageRatioForAge(age) * 100).toInt();
-
-    String basePrompt = """
-    Create educational content for children age $age about '$chapter' in the subject '$subject'.
+    final cardCount = calculateCardCount(subject, chapter, age);
+    
+    // Age-specific content format requirements
+    String ageSpecificFormat;
+    if (age == 4) {
+      ageSpecificFormat = "very simple bullet-point captions with optional TTS audio snippets that auto-play";
+    } else if (age == 5) {
+      ageSpecificFormat = "short paragraphs with inline key-term highlights and a '🔊' play button";
+    } else { // age 6
+      ageSpecificFormat = "more detailed paragraphs enriched with embedded mini-quizzes";
+    }
+    
+    return """
+    Create flashcard educational content for children age $age about '$chapter' in the subject '$subject'.
     The content should be:
     - Appropriate for $age-year-old children
     - Using vocabulary that is $vocabularyLevel
     - Using $sentenceComplexity
     - Including $interactiveElements
     - Having approximately $imageRatio% visual content and ${100 - imageRatio}% text content
-    - Limited to $pageLimit pages maximum
+    - IMPORTANT: Generate EXACTLY $cardCount flashcards, no more and no less
+    - IMPORTANT: Format the content as $ageSpecificFormat
+    
+    Structure each flashcard with:
+    - An engaging title or question
+    - Key concepts explained simply
+    - Visual examples with images
+    - Interactive questions or activities
+    - Audio elements where appropriate
+    
+    Each flashcard should be self-contained and focus on a single concept or idea.
     """;
-
-    switch (templateId) {
-      case 'balanced':
-        return basePrompt + """
-        Create a balanced educational note with a mix of text, images, and interactive elements.
-        Structure the content with:
-        - An engaging title
-        - A brief introduction
-        - Key concepts explained simply
-        - Visual examples
-        - Interactive questions or activities
-        - A simple summary
-        """;
-      
-      case 'story':
-        return basePrompt + """
-        Create a narrative story that teaches about the topic.
-        Structure the story with:
-        - An engaging title
-        - Characters that children can relate to
-        - A clear beginning, middle, and end
-        - Educational content woven into the story
-        - Visual scenes to illustrate key moments
-        - Questions or activities related to the story
-        """;
-      
-      case 'factual':
-        return basePrompt + """
-        Create a fact-based educational note that presents information clearly.
-        Structure the content with:
-        - An informative title
-        - Simple, clear facts about the topic
-        - Visual examples or diagrams
-        - "Did you know?" sections with interesting facts
-        - Simple explanations of concepts
-        - Review questions
-        """;
-      
-      case 'interactive':
-        return basePrompt + """
-        Create a highly interactive educational note with many activities.
-        Structure the content with:
-        - An engaging title
-        - Brief explanations of concepts
-        - Multiple interactive elements like:
-          * Questions to answer
-          * Matching activities
-          * Fill-in-the-blank exercises
-          * Counting or sequencing activities
-          * Simple puzzles
-        - Visual aids for each activity
-        - Encouraging feedback phrases
-        """;
-      
-      case 'visual':
-        return basePrompt + """
-        Create a visually-focused educational note with minimal text.
-        Structure the content with:
-        - An engaging title
-        - Primarily visual content (images, diagrams)
-        - Very brief text explanations
-        - Visual sequences showing processes or concepts
-        - Simple labels and captions
-        - Visual questions or activities
-        """;
-      
-      default:
-        return basePrompt;
-    }
   }
 
   // Process Gemini response into structured note content
-  Map<String, dynamic> _processGeminiResponse(String response, String templateId, int age) {
-    // Extract title and content sections
-    final lines = response.split('\n');
-    String title = 'New Note';
+  Map<String, dynamic> _processGeminiResponse(Map<String, dynamic> response, String templateId, int age) {
+    // Extract title from the response or use a default
+    String title = response['title'] ?? 'New Note';
     List<Map<String, dynamic>> elements = [];
     
-    // Try to extract title from first line
-    if (lines.isNotEmpty && lines[0].trim().isNotEmpty) {
-      title = lines[0].trim();
-      // Remove any markdown characters like # from the title
-      title = title.replaceAll(RegExp(r'^#+\s*'), '');
-    }
-    
-    // Process the rest of the content
-    bool isInTextBlock = false;
-    String currentTextBlock = '';
-    
-    for (int i = 1; i < lines.length; i++) {
-      final line = lines[i].trim();
-      
-      // Skip empty lines
-      if (line.isEmpty) {
-        if (isInTextBlock && currentTextBlock.isNotEmpty) {
-          // End of text block
-          elements.add({
-            'type': 'text',
-            'content': currentTextBlock.trim(),
-            'isBold': false,
-            'isItalic': false,
-          });
-          currentTextBlock = '';
-          isInTextBlock = false;
-        }
-        continue;
-      }
-      
-      // Check for image descriptions (in brackets or with image keywords)
-      if (line.contains('[image') || line.contains('(image') || 
-          line.startsWith('image:') || line.startsWith('Image:') ||
-          line.contains('picture of') || line.contains('diagram of')) {
-        
-        // If we were in a text block, end it
-        if (isInTextBlock && currentTextBlock.isNotEmpty) {
-          elements.add({
-            'type': 'text',
-            'content': currentTextBlock.trim(),
-            'isBold': false,
-            'isItalic': false,
-          });
-          currentTextBlock = '';
-          isInTextBlock = false;
-        }
-        
-        // Add image element
-        String caption = line
-            .replaceAll(RegExp(r'\[image.*?\]'), '')
-            .replaceAll(RegExp(r'\(image.*?\)'), '')
-            .replaceAll('image:', '')
-            .replaceAll('Image:', '')
-            .trim();
-            
-        elements.add({
-          'type': 'image',
-          'imageUrl': '', // Will be filled by Gemini later
-          'caption': caption.isEmpty ? 'Image' : caption,
-        });
-      }
-      // Check for audio descriptions
-      else if (line.contains('[audio') || line.contains('(audio') || 
-               line.startsWith('audio:') || line.startsWith('Audio:') ||
-               line.contains('listen to')) {
-        
-        // If we were in a text block, end it
-        if (isInTextBlock && currentTextBlock.isNotEmpty) {
-          elements.add({
-            'type': 'text',
-            'content': currentTextBlock.trim(),
-            'isBold': false,
-            'isItalic': false,
-          });
-          currentTextBlock = '';
-          isInTextBlock = false;
-        }
-        
-        // Add audio element
-        String description = line
-            .replaceAll(RegExp(r'\[audio.*?\]'), '')
-            .replaceAll(RegExp(r'\(audio.*?\)'), '')
-            .replaceAll('audio:', '')
-            .replaceAll('Audio:', '')
-            .trim();
-            
-        elements.add({
-          'type': 'audio',
-          'audioUrl': '', // Will be filled later
-          'title': description.isEmpty ? 'Audio' : description,
-        });
-      }
-      // Check for interactive elements
-      else if (line.contains('activity:') || line.contains('Activity:') ||
-               line.contains('question:') || line.contains('Question:') ||
-               line.contains('exercise:') || line.contains('Exercise:')) {
-        
-        // If we were in a text block, end it
-        if (isInTextBlock && currentTextBlock.isNotEmpty) {
-          elements.add({
-            'type': 'text',
-            'content': currentTextBlock.trim(),
-            'isBold': false,
-            'isItalic': false,
-          });
-          currentTextBlock = '';
-          isInTextBlock = false;
-        }
-        
-        // Add interactive element
-        String activityText = line
-            .replaceAll('activity:', '')
-            .replaceAll('Activity:', '')
-            .replaceAll('question:', '')
-            .replaceAll('Question:', '')
-            .replaceAll('exercise:', '')
-            .replaceAll('Exercise:', '')
-            .trim();
-            
-        elements.add({
-          'type': 'interactive',
-          'content': activityText,
-          'activityType': line.toLowerCase().contains('question') ? 'question' :
-                         line.toLowerCase().contains('match') ? 'matching' :
-                         'activity',
-        });
-      }
-      // Regular text
-      else {
-        if (!isInTextBlock) {
-          isInTextBlock = true;
-          currentTextBlock = line;
-        } else {
-          currentTextBlock += '\n' + line;
+    // Convert the elements from the response
+    if (response['elements'] != null && response['elements'] is List) {
+      for (var element in response['elements']) {
+        if (element is Map<String, dynamic>) {
+          elements.add(Map<String, dynamic>.from(element));
         }
       }
     }
     
-    // Add any remaining text block
-    if (isInTextBlock && currentTextBlock.isNotEmpty) {
+    // If no elements were found or the list is empty, create a default text element
+    if (elements.isEmpty) {
       elements.add({
         'type': 'text',
-        'content': currentTextBlock.trim(),
+        'content': 'No content was generated. Please try again.',
         'isBold': false,
-        'isItalic': false,
+        'isItalic': true,
+        'fontSize': getFontSizeForAge(age),
       });
     }
     
@@ -417,9 +340,14 @@ class EnhancedNoteTemplateManager {
     };
   }
 
-  // Add template-specific elements based on template type
+  // Add template-specific elements based on template type and age
   void _addTemplateSpecificElements(List<Map<String, dynamic>> elements, String templateId, int age) {
     switch (templateId) {
+      case 'flashcard':
+        // Add age-specific elements for flashcards
+        _addAgeSpecificFlashcardElements(elements, age);
+        break;
+        
       case 'interactive':
         // Ensure there are enough interactive elements
         int interactiveCount = elements.where((e) => e['type'] == 'interactive').length;
@@ -498,6 +426,82 @@ class EnhancedNoteTemplateManager {
         break;
     }
   }
+  
+  // Add age-specific elements for flashcards
+  void _addAgeSpecificFlashcardElements(List<Map<String, dynamic>> elements, int age) {
+    // Ensure each element has the appropriate format based on age
+    for (var i = 0; i < elements.length; i++) {
+      var element = elements[i];
+      
+      // Skip if not a text element
+      if (element['type'] != 'text') continue;
+      
+      // Age 4: Simple bullet points with auto-play audio
+      if (age == 4) {
+        // Convert paragraphs to bullet points if needed
+        String content = element['content'] ?? '';
+        if (!content.contains('•') && !content.contains('-')) {
+          // Convert to bullet points
+          List<String> sentences = content.split('. ')
+              .where((s) => s.trim().isNotEmpty)
+              .map((s) => s.endsWith('.') ? s : '$s.')
+              .toList();
+          
+          content = sentences.map((s) => '• ${s.trim()}').join('\n');
+          element['content'] = content;
+        }
+        
+        // Add auto-play audio for age 4
+        elements.add({
+          'type': 'audio',
+          'audioUrl': '',
+          'title': 'Listen',
+          'autoPlay': true,
+          'position': (element['position'] ?? i) + 0.5, // Position after the text
+        });
+      }
+      
+      // Age 5: Short paragraphs with key-term highlights and play button
+      else if (age == 5) {
+        // Add play button icon to content if not already present
+        String content = element['content'] ?? '';
+        if (!content.contains('🔊')) {
+          element['content'] = '🔊 $content';
+        }
+        
+        // Add audio element without auto-play
+        elements.add({
+          'type': 'audio',
+          'audioUrl': '',
+          'title': 'Listen to explanation',
+          'autoPlay': false,
+          'position': (element['position'] ?? i) + 0.5, // Position after the text
+        });
+      }
+      
+      // Age 6: Detailed paragraphs with mini-quizzes
+      else if (age == 6) {
+        // Check if content already has quiz elements
+        String content = element['content'] ?? '';
+        if (!content.contains('?')) {
+          // Add a simple quiz question at the end
+          content += '\n\nQuick Quiz: What is the main idea of this flashcard?';
+          element['content'] = content;
+        }
+      }
+    }
+    
+    // Ensure each flashcard has an image
+    bool hasImage = elements.any((e) => e['type'] == 'image');
+    if (!hasImage) {
+      elements.add({
+        'type': 'image',
+        'imageUrl': '',
+        'caption': 'Illustration for this concept',
+        'position': 1, // Position at the top
+      });
+    }
+  }
 
   // Convert processed content to Note model
   Note convertToNoteModel(Map<String, dynamic> processedContent) {
@@ -546,11 +550,11 @@ class EnhancedNoteTemplateManager {
     }
 
     return Note(
-      id: const Uuid().v4(),
       title: processedContent['title'] ?? 'New Note',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       elements: noteElements,
+      isDraft: true,
     );
   }
 }

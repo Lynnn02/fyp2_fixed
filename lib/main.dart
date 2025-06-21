@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'services/user_service.dart';
 import 'splash_screen.dart';
 import 'auth_module/login_screen.dart';
@@ -85,12 +86,17 @@ class MyApp extends StatelessWidget {
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       localizationsDelegates: const [
-        DefaultMaterialLocalizations.delegate,
-        DefaultWidgetsLocalizations.delegate,
-        DefaultCupertinoLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
         Locale('en', 'US'),
+        Locale('ar', 'SA'),
+        Locale('ms', 'MY'),
+        Locale('zh', 'CN'),
+        Locale('ta', 'IN'),
+        Locale('hi', 'IN'),
       ],
       initialRoute: '/splash',
       routes: {
