@@ -153,6 +153,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   void _navigateToQuizzes() {
     // TODO: Navigate to quizzes screen
   }
+  
+  // Removed _navigateToFlashcardTest method - flashcards are now created only through the content page
 
   @override
   Widget build(BuildContext context) {
@@ -386,11 +388,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             iconColor: Colors.purple,
                             onTap: _navigateToAnalytics,
                           ),
-                
                         ),
                       ],
-                    )
-                  else
+                    ),
+                  if (MediaQuery.of(context).size.width < 600)
                     Column(
                       children: [
                         // Grid layout for quick links on mobile
@@ -426,6 +427,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                 onTap: _navigateToAnalytics,
                               ),
                             ),
+                            // Removed mobile Flashcard Test button - flashcards are now created only through the content page
 
                           ],
                         ),

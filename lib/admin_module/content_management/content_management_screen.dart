@@ -19,7 +19,7 @@ import 'game_template/game_template/sorting_game.dart';
 import '../../models/game.dart';
 
 import 'note_template/note_template_selection_screen.dart';
-import 'note_template/note_template_preview_screen.dart';
+import 'note_template/enhanced_note_preview_screen.dart';
 
 class ContentManagementScreen extends StatefulWidget {
   const ContentManagementScreen({Key? key}) : super(key: key);

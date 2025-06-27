@@ -29,6 +29,7 @@ import 'children_module/Game/gameSelection_screen.dart';
 import 'admin_module/adminhome_screen.dart';
 import 'admin_module/user_management/user_list_screen.dart';
 import 'admin_module/content_management/content_management_screen.dart';
+import 'admin_module/content_management/note_template/flashcard_test_screen.dart';
 import 'admin_module/analytic/new_analytic_screen.dart';
 import 'models/subject.dart';
 import 'models/note_content.dart';

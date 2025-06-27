@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'dart:convert';
 import '../../../models/note_content.dart';
 import '../../../services/gemini_service.dart';
+import 'flashcard_template_generator.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -44,24 +46,25 @@ class EnhancedNoteTemplateManager {
     // Normalize subject and chapter names for lookup
     final normalizedSubject = subject.toLowerCase().trim();
     final normalizedChapter = chapter.toLowerCase().trim();
+
+    // Special handling for alphabet/character sets - override to 26 or 37 cards regardless of age
+    if (normalizedChapter.contains('alphabet') || 
+        normalizedChapter.contains('abjad') || 
+        normalizedChapter.contains('huruf')) {
+      // Jawi alphabet has 37 letters, English has 26
+      return normalizedSubject.contains('jawi') ? 37 : 26;
+    }
     
-    // Try to find exact match first
-    final String key = '${normalizedSubject}_${normalizedChapter}';
-    final Map<String, dynamic> rules = chapterCardRules[key] ?? 
-                                      chapterCardRules['default'] ?? 
-                                      {'count': 4, 'multiplier': 0.5, 'bonus': 0};
-    
-    // Calculate card count based on rules and age
-    final int baseCount = rules['count'] ?? 4;
-    final double multiplier = rules['multiplier'] ?? 0.5;
-    final int bonus = rules['bonus'] ?? 0;
-    
-    // Apply age multiplier and bonus
-    final int ageBonus = (age * multiplier).round();
-    final int totalCount = baseCount + ageBonus + bonus;
-    
-    // Ensure minimum of 3 cards and maximum of 10 cards
-    return totalCount.clamp(3, 10);
+    // Age-specific card counts as per requirements
+    switch (age) {
+      case 4:
+        return 8;  // 8 cards for age 4
+      case 5:
+        return 12; // 12 cards for age 5
+      case 6:
+      default:
+        return 16; // 16 cards for age 6
+    }
   }
   
   // Determine cards per page based on screen width
@@ -70,10 +73,85 @@ class EnhancedNoteTemplateManager {
     return screenWidth < 600 ? 1 : 2;
   }
   
+  // Generate flashcard content based on subject, chapter, age, language, and count
+  List<Map<String, dynamic>> generateFlashcardContent({
+    required String subject,
+    required String chapter,
+    required int age,
+    required String language,
+    required int count,
+  }) {
+    // Use the dedicated FlashcardTemplateGenerator class
+    return FlashcardTemplateGenerator.generateFlashcards(
+      subject: subject,
+      chapter: chapter,
+      age: age,
+      language: language,
+      count: count,
+    );
+  }
+  
+  // Convert flashcards to JSON string
+  String flashcardsToJson(List<Map<String, dynamic>> flashcards) {
+    return FlashcardTemplateGenerator.toJson(flashcards);
+  }
+  
   // Calculate total pages needed based on card count and screen size
   int calculateTotalPages(int cardCount, double screenWidth) {
-    final cardsPerPage = getCardsPerPage(screenWidth);
+    final int cardsPerPage = getCardsPerPage(screenWidth);
     return (cardCount / cardsPerPage).ceil();
+  }
+  
+  // Helper method to get example word for each English letter
+  String _getExampleWordForLetter(String letter) {
+    final Map<String, String> exampleWords = {
+      'A': 'Apple',
+      'B': 'Ball',
+      'C': 'Cat',
+      'D': 'Dog',
+      'E': 'Elephant',
+      'F': 'Fish',
+      'G': 'Goat',
+      'H': 'House',
+      'I': 'Ice cream',
+      'J': 'Jelly',
+      'K': 'Kite',
+      'L': 'Lion',
+      'M': 'Monkey',
+      'N': 'Nest',
+      'O': 'Orange',
+      'P': 'Pencil',
+      'Q': 'Queen',
+      'R': 'Rabbit',
+      'S': 'Sun',
+      'T': 'Tree',
+      'U': 'Umbrella',
+      'V': 'Van',
+      'W': 'Water',
+      'X': 'X-ray',
+      'Y': 'Yo-yo',
+      'Z': 'Zebra',
+    };
+    
+    return exampleWords[letter] ?? letter;
+  }
+
+  // Helper method to get ordinal suffix (1st, 2nd, 3rd, etc.)
+  String _getOrdinalSuffix(int number) {
+    if (number >= 11 && number <= 13) {
+      return 'th';
+    }
+    
+    switch (number % 10) {
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
+    }
   }
 
   // Age-specific font sizes
@@ -202,43 +280,79 @@ class EnhancedNoteTemplateManager {
     required String chapter,
     required int age,
     double screenWidth = 400, // Default to phone width if not provided
+    String language = 'en', // Default language is English
   }) async {
     // Calculate card count and pages
     final int cardCount = calculateCardCount(subject, chapter, age);
     final int cardsPerPage = getCardsPerPage(screenWidth);
     final int totalPages = calculateTotalPages(cardCount, screenWidth);
     
-    // Prepare the prompt based on template type and age
-    String prompt = _buildPromptForTemplate(
-      templateId: templateId,
-      subject: subject,
-      chapter: chapter,
-      age: age,
-    );
-    
     try {
-      // Generate content using Gemini
-      final response = await _geminiService.generateNoteContent(
-        subject: subject,
-        chapter: chapter,
-        age: age,
-        templateType: templateId,
-      );
-      
-      // Process the response directly
-      if (response == null) {
-        throw Exception('Failed to generate note content');
+      // For flashcard templates, use the dedicated FlashcardTemplateGenerator
+      if (templateId.toLowerCase() == 'flashcard') {
+        // Calculate the appropriate number of flashcards based on subject and chapter
+        final int flashcardCount = calculateCardCount(subject, chapter, age);
+        
+        // Generate flashcards using the dedicated generator
+        final flashcards = generateFlashcardContent(
+          subject: subject,
+          chapter: chapter,
+          age: age,
+          language: language,
+          count: flashcardCount,
+        );
+        
+        // Convert flashcards to a format compatible with the note preview system
+        final Map<String, dynamic> processedContent = {
+          'title': 'Flashcard: ${chapter}',
+          'elements': flashcards.map((card) {
+            return {
+              'type': 'flashcard',
+              'image_prompt': card['image_prompt'],
+              'label': card['label'],
+              'question_text': card['question_text'] ?? '',
+              'audio_prompt': card['audio_prompt'] ?? '',
+            };
+          }).toList(),
+          'cardCount': flashcards.length,
+          'cardsPerPage': cardsPerPage,
+          'totalPages': totalPages,
+        };
+        
+        return processedContent;
+      } else {
+        // For non-flashcard templates, use the original Gemini-based approach
+        // Prepare the prompt based on template type and age
+        String prompt = _buildPromptForTemplate(
+          templateId: templateId,
+          subject: subject,
+          chapter: chapter,
+          age: age,
+        );
+        
+        // Generate content using Gemini
+        final response = await _geminiService.generateNoteContent(
+          subject: subject,
+          chapter: chapter,
+          age: age,
+          templateType: templateId,
+        );
+        
+        // Process the response directly
+        if (response == null) {
+          throw Exception('Failed to generate note content');
+        }
+        
+        // Process the response into structured note content
+        Map<String, dynamic> processedContent = _processGeminiResponse(response, templateId, age);
+        
+        // Add paging information to the response
+        processedContent['cardCount'] = cardCount;
+        processedContent['cardsPerPage'] = cardsPerPage;
+        processedContent['totalPages'] = totalPages;
+        
+        return processedContent;
       }
-      
-      // Process the response into structured note content
-      Map<String, dynamic> processedContent = _processGeminiResponse(response, templateId, age);
-      
-      // Add paging information to the response
-      processedContent['cardCount'] = cardCount;
-      processedContent['cardsPerPage'] = cardsPerPage;
-      processedContent['totalPages'] = totalPages;
-      
-      return processedContent;
     } catch (e) {
       print('Error generating note content: $e');
       return {
@@ -265,6 +379,39 @@ class EnhancedNoteTemplateManager {
     required String chapter,
     required int age,
   }) {
+    final normalizedSubject = subject.toLowerCase().trim();
+    final normalizedChapter = chapter.toLowerCase().trim();
+
+    // Special prompt for Jawi Huruf and Language Alphabet
+    if ((normalizedSubject == 'jawi' && normalizedChapter.contains('huruf')) ||
+        (normalizedSubject == 'language' && normalizedChapter.contains('alphabet'))) {
+      
+      final isJawi = normalizedSubject == 'jawi';
+      final letterCount = isJawi ? 37 : 26;
+      final alphabetName = isJawi ? 'Jawi alphabet (huruf)' : 'English alphabet';
+      final letterExample = isJawi ? "'letter': 'ا', 'name': 'Alif'" : "'letter': 'A', 'name': 'A'";
+      final letterSet = isJawi ? "from Alif to Ya, including letters like Pa, Ga, Cha, Nga, Nya, Va, and Hamzah" : "from A to Z";
+
+      return """
+      Create a set of $letterCount flashcards for the $alphabetName.
+      Each flashcard should represent a single letter.
+      For each letter, provide the following in a structured format:
+      - 'letter': The letter character (e.g., ${isJawi ? "'ا'" : "'A'"}).
+      - 'name': The name of the letter (e.g., ${isJawi ? "'Alif'" : "'A'"}).
+
+      Return the response as a JSON object with a single key "elements", which is a list of these flashcard objects.
+      Each object in the list should have 'type': 'flashcard_letter'.
+      Example for one element:
+      {
+        "type": "flashcard_letter",
+        $letterExample
+      }
+      Generate all $letterCount letters $letterSet.
+      Do not add any extra text, titles, or explanations outside of the JSON structure.
+      The entire output must be a valid JSON.
+      """;
+    }
+
     final vocabularyLevel = getVocabularyLevelForAge(age);
     final sentenceComplexity = getSentenceComplexityForAge(age);
     final interactiveElements = getInteractiveElementsForAge(age).join(', ');
@@ -306,18 +453,401 @@ class EnhancedNoteTemplateManager {
   // Process Gemini response into structured note content
   Map<String, dynamic> _processGeminiResponse(Map<String, dynamic> response, String templateId, int age) {
     // Extract title from the response or use a default
-    String title = response['title'] ?? 'New Note';
+    String title = response['title'] ?? 'Learning About Huruf';
     List<Map<String, dynamic>> elements = [];
     
-    // Convert the elements from the response
-    if (response['elements'] != null && response['elements'] is List) {
-      for (var element in response['elements']) {
-        if (element is Map<String, dynamic>) {
-          elements.add(Map<String, dynamic>.from(element));
+    // Add age-specific metadata based on requirements
+    Map<String, dynamic> ageMetadata = {
+      'autoPlayAudio': age == 4, // Auto-play for age 4 only
+      'showPlayButton': age >= 5, // Show play button for ages 5+
+      'showDetailedText': age >= 6, // Show more detailed text for age 6+
+      'cardsPerPage': 1, // Always use 1 card per page for better display
+      'defaultCardCount': age == 4 ? 8 : (age == 5 ? 12 : 16), // Default card count based on age
+    };
+
+    // Check if this is a Jawi or alphabet subject
+    final bool isAlphabetContent = templateId == 'flashcard' && 
+        (response['subject']?.toString().toLowerCase().contains('jawi') == true ||
+         response['chapter']?.toString().toLowerCase().contains('huruf') == true ||
+         response['subject']?.toString().toLowerCase().contains('language') == true ||
+         response['chapter']?.toString().toLowerCase().contains('alphabet') == true);
+
+    // Special handling for alphabet content
+    if (isAlphabetContent) {
+      try {
+        // Try to extract the content from various possible response formats
+        var rawContent = response['content'] ?? response['text'] ?? response['response'] ?? '';
+        
+        // If we have a string response, try to parse it as JSON
+        if (rawContent is String && rawContent.isNotEmpty) {
+          try {
+            // Try to extract JSON from the text
+            final jsonStart = rawContent.indexOf('{');
+            final jsonEnd = rawContent.lastIndexOf('}');
+            
+            if (jsonStart >= 0 && jsonEnd > jsonStart) {
+              final jsonStr = rawContent.substring(jsonStart, jsonEnd + 1);
+              final parsedJson = json.decode(jsonStr);
+              
+              if (parsedJson['elements'] is List) {
+                for (var element in parsedJson['elements']) {
+                  if (element is Map<String, dynamic> && 
+                      element['letter'] != null && 
+                      element['name'] != null) {
+                    elements.add({
+                      'type': 'text',
+                      'content': element['letter'],
+                      'isBold': true,
+                      'fontSize': 80.0,
+                      'metadata': {'name': element['name']}
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            print('Error parsing JSON from response: $e');
+            // Continue to fallback handling
+          }
+        }
+        
+        // If we still don't have elements, try to extract from the elements array directly
+        if (elements.isEmpty && response['elements'] != null && response['elements'] is List) {
+          for (var element in response['elements']) {
+            if (element is Map<String, dynamic>) {
+              // Handle the flashcard_letter type
+              if (element['type'] == 'flashcard_letter') {
+                elements.add({
+                  'type': 'text',
+                  'content': element['letter'] ?? '',
+                  'isBold': true,
+                  'fontSize': 80.0,
+                  'metadata': {'name': element['name'] ?? ''}
+                });
+              } else if (element['letter'] != null && element['name'] != null) {
+                // Handle direct letter/name pairs
+                elements.add({
+                  'type': 'text',
+                  'content': element['letter'],
+                  'isBold': true,
+                  'fontSize': 80.0,
+                  'metadata': {'name': element['name']}
+                });
+              } else {
+                elements.add(Map<String, dynamic>.from(element));
+              }
+            }
+          }
+        }
+        
+        // If still no elements, create fallback alphabet content
+        if (elements.isEmpty) {
+          final bool isJawi = response['subject']?.toString().toLowerCase().contains('jawi') == true || 
+                            response['chapter']?.toString().toLowerCase().contains('huruf') == true;
+          
+          if (isJawi) {
+            // Create fallback Jawi alphabet content with age-specific formatting
+            final List<Map<String, String>> jawiLetters = [
+              {'letter': 'ا', 'name': 'Alif'},
+              {'letter': 'ب', 'name': 'Ba'},
+              {'letter': 'ت', 'name': 'Ta'},
+              {'letter': 'ث', 'name': 'Tha'},
+              {'letter': 'ج', 'name': 'Jim'},
+              {'letter': 'ح', 'name': 'Ha'},
+              {'letter': 'خ', 'name': 'Kha'},
+              {'letter': 'د', 'name': 'Dal'},
+              {'letter': 'ذ', 'name': 'Dzal'},
+              {'letter': 'ر', 'name': 'Ra'},
+              {'letter': 'ز', 'name': 'Zai'},
+              {'letter': 'س', 'name': 'Sin'},
+              {'letter': 'ش', 'name': 'Shin'},
+              {'letter': 'ص', 'name': 'Sad'},
+              {'letter': 'ض', 'name': 'Dad'},
+              {'letter': 'ط', 'name': 'Ta'},
+              {'letter': 'ظ', 'name': 'Za'},
+              {'letter': 'ع', 'name': 'Ain'},
+              {'letter': 'غ', 'name': 'Ghain'},
+              {'letter': 'ف', 'name': 'Fa'},
+              {'letter': 'ق', 'name': 'Qaf'},
+              {'letter': 'ك', 'name': 'Kaf'},
+              {'letter': 'ل', 'name': 'Lam'},
+              {'letter': 'م', 'name': 'Mim'},
+              {'letter': 'ن', 'name': 'Nun'},
+              {'letter': 'ه', 'name': 'Ha'},
+              {'letter': 'و', 'name': 'Waw'},
+              {'letter': 'ي', 'name': 'Ya'},
+              {'letter': 'ڤ', 'name': 'Pa'},
+              {'letter': 'ݢ', 'name': 'Ga'},
+              {'letter': 'چ', 'name': 'Cha'},
+              {'letter': 'ڠ', 'name': 'Nga'},
+              {'letter': 'ڽ', 'name': 'Nya'},
+              {'letter': 'ۏ', 'name': 'Va'},
+              {'letter': 'ء', 'name': 'Hamzah'},
+            ];
+            
+            // Process each letter according to age-specific requirements
+            for (var letter in jawiLetters) {
+              // For age 4: Large letter with name and auto-playing audio
+              if (age == 4) {
+                // Create the main letter element with proper metadata
+                Map<String, dynamic> letterElement = {
+                  'type': 'text',
+                  'content': letter['letter'] ?? '',
+                  'isBold': true,
+                  'fontSize': 80.0,
+                  'metadata': {
+                    'name': letter['name'] ?? '',
+                    'autoPlayAudio': true,
+                    'showPlayButton': false
+                  }
+                };
+                
+                // Add audio element with auto-play
+                Map<String, dynamic> audioElement = {
+                  'type': 'audio',
+                  'content': 'Audio: ${letter['name']}',
+                  'audioUrl': 'https://example.com/audio/${letter['letter']}.mp3', // Placeholder URL
+                  'metadata': {
+                    'autoPlay': true,
+                    'showControls': false,
+                    'letterName': letter['name'] ?? ''
+                  }
+                };
+                
+                // Add elements
+                elements.add(letterElement);
+                elements.add(audioElement);
+              }
+              // For age 5: Letter with name, simple description, and play button
+              else if (age == 5) {
+                // Create the main letter element
+                Map<String, dynamic> letterElement = {
+                  'type': 'text',
+                  'content': letter['letter'] ?? '',
+                  'isBold': true,
+                  'fontSize': 70.0,
+                  'metadata': {
+                    'name': letter['name'] ?? '',
+                    'autoPlayAudio': false,
+                    'showPlayButton': true
+                  }
+                };
+                
+                // Add simple description
+                Map<String, dynamic> descriptionElement = {
+                  'type': 'text',
+                  'content': '${letter['name']} is a letter in the Jawi alphabet.',
+                  'isBold': false,
+                  'fontSize': 18.0,
+                  'metadata': {'isDescription': true}
+                };
+                
+                // Add audio element with play button
+                Map<String, dynamic> audioElement = {
+                  'type': 'audio',
+                  'content': 'Audio: ${letter['name']}',
+                  'audioUrl': 'https://example.com/audio/${letter['letter']}.mp3', // Placeholder URL
+                  'metadata': {
+                    'autoPlay': false,
+                    'showControls': true,
+                    'letterName': letter['name'] ?? ''
+                  }
+                };
+                
+                // Add elements
+                elements.add(letterElement);
+                elements.add(descriptionElement);
+                elements.add(audioElement);
+              }
+              // For age 6: Letter with name, detailed description, and full audio controls
+              else {
+                // Create the main letter element
+                Map<String, dynamic> letterElement = {
+                  'type': 'text',
+                  'content': letter['letter'] ?? '',
+                  'isBold': true,
+                  'fontSize': 60.0,
+                  'metadata': {
+                    'name': letter['name'] ?? '',
+                    'autoPlayAudio': false,
+                    'showPlayButton': true
+                  }
+                };
+                
+                // Add detailed description
+                Map<String, dynamic> descriptionElement = {
+                  'type': 'text',
+                  'content': '${letter['name']} is a letter in the Jawi alphabet. It is pronounced as "${letter['name']}".',
+                  'isBold': false,
+                  'fontSize': 20.0,
+                  'metadata': {'isDescription': true}
+                };
+                
+                // Add audio element with full controls
+                Map<String, dynamic> audioElement = {
+                  'type': 'audio',
+                  'content': 'Audio: ${letter['name']}',
+                  'audioUrl': 'https://example.com/audio/${letter['letter']}.mp3', // Placeholder URL
+                  'metadata': {
+                    'autoPlay': false,
+                    'showControls': true,
+                    'showFullControls': true,
+                    'letterName': letter['name'] ?? ''
+                  }
+                };
+                
+                // Add elements
+                elements.add(letterElement);
+                elements.add(descriptionElement);
+                elements.add(audioElement);
+              }
+            }
+          } else {
+            // Create fallback English alphabet content with age-specific formatting
+            final List<String> englishAlphabet = [
+              'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+              'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+            ];
+            
+            for (var letter in englishAlphabet) {
+              // Get example word for this letter
+              String exampleWord = _getExampleWordForLetter(letter);
+              
+              // For age 4: Large letter with name and auto-playing audio
+              if (age == 4) {
+                // Create the main letter element with proper metadata
+                Map<String, dynamic> letterElement = {
+                  'type': 'text',
+                  'content': letter,
+                  'isBold': true,
+                  'fontSize': 80.0,
+                  'metadata': {
+                    'name': letter,
+                    'exampleWord': exampleWord,
+                    'autoPlayAudio': true,
+                    'showPlayButton': false
+                  }
+                };
+                
+                // Add audio element with auto-play
+                Map<String, dynamic> audioElement = {
+                  'type': 'audio',
+                  'content': 'Audio: Letter $letter',
+                  'audioUrl': 'https://example.com/audio/$letter.mp3', // Placeholder URL
+                  'metadata': {
+                    'autoPlay': true,
+                    'showControls': false,
+                    'letterName': letter
+                  }
+                };
+                
+                // Add elements
+                elements.add(letterElement);
+                elements.add(audioElement);
+              }
+              // For age 5: Letter with name, simple description, and play button
+              else if (age == 5) {
+                // Create the main letter element
+                Map<String, dynamic> letterElement = {
+                  'type': 'text',
+                  'content': letter,
+                  'isBold': true,
+                  'fontSize': 70.0,
+                  'metadata': {
+                    'name': letter,
+                    'exampleWord': exampleWord,
+                    'autoPlayAudio': false,
+                    'showPlayButton': true
+                  }
+                };
+                
+                // Add simple description
+                Map<String, dynamic> descriptionElement = {
+                  'type': 'text',
+                  'content': '$letter as in $exampleWord',
+                  'isBold': false,
+                  'fontSize': 18.0,
+                  'metadata': {'isDescription': true}
+                };
+                
+                // Add audio element with play button
+                Map<String, dynamic> audioElement = {
+                  'type': 'audio',
+                  'content': 'Audio: Letter $letter',
+                  'audioUrl': 'https://example.com/audio/$letter.mp3', // Placeholder URL
+                  'metadata': {
+                    'autoPlay': false,
+                    'showControls': true,
+                    'letterName': letter
+                  }
+                };
+                
+                // Add elements
+                elements.add(letterElement);
+                elements.add(descriptionElement);
+                elements.add(audioElement);
+              }
+              // For age 6: Letter with name, detailed description, and full audio controls
+              else {
+                // Create the main letter element
+                Map<String, dynamic> letterElement = {
+                  'type': 'text',
+                  'content': letter,
+                  'isBold': true,
+                  'fontSize': 60.0,
+                  'metadata': {
+                    'name': letter,
+                    'exampleWord': exampleWord,
+                    'autoPlayAudio': false,
+                    'showPlayButton': true
+                  }
+                };
+                
+                // Add detailed description
+                Map<String, dynamic> descriptionElement = {
+                  'type': 'text',
+                  'content': '$letter as in $exampleWord. The letter $letter is the ${englishAlphabet.indexOf(letter) + 1}${_getOrdinalSuffix(englishAlphabet.indexOf(letter) + 1)} letter of the English alphabet.',
+                  'isBold': false,
+                  'fontSize': 20.0,
+                  'metadata': {'isDescription': true}
+                };
+                
+                // Add audio element with full controls
+                Map<String, dynamic> audioElement = {
+                  'type': 'audio',
+                  'content': 'Audio: Letter $letter',
+                  'audioUrl': 'https://example.com/audio/$letter.mp3', // Placeholder URL
+                  'metadata': {
+                    'autoPlay': false,
+                    'showControls': true,
+                    'showFullControls': true,
+                    'letterName': letter
+                  }
+                };
+                
+                // Add elements
+                elements.add(letterElement);
+                elements.add(descriptionElement);
+                elements.add(audioElement);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('Error processing alphabet content: $e');
+        // Continue to standard element processing
+      }
+    } else {
+      // Standard element processing for non-alphabet content
+      if (response['elements'] != null && response['elements'] is List) {
+        for (var element in response['elements']) {
+          if (element is Map<String, dynamic>) {
+            elements.add(Map<String, dynamic>.from(element));
+          }
         }
       }
     }
-    
+
     // If no elements were found or the list is empty, create a default text element
     if (elements.isEmpty) {
       elements.add({

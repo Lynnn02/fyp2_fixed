@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'container_element.dart';
 
 /// Base class for all note content elements
 abstract class NoteContentElement {
@@ -6,12 +7,14 @@ abstract class NoteContentElement {
   final String type;
   final int position;
   final Timestamp createdAt;
+  final Map<String, dynamic>? metadata;
 
   NoteContentElement({
     required this.id,
     required this.type,
     required this.position,
     required this.createdAt,
+    this.metadata,
   });
 
   Map<String, dynamic> toJson();
@@ -28,6 +31,8 @@ abstract class NoteContentElement {
         return AudioElement.fromJson(json);
       case 'document':
         return DocumentElement.fromJson(json);
+      case 'container':
+        return ContainerElement.fromJson(json);
       default:
         throw Exception('Unknown note content element type: $type');
     }
@@ -52,11 +57,13 @@ class TextElement extends NoteContentElement {
     this.isList = false,
     this.textColor,
     this.fontSize,
+    Map<String, dynamic>? metadata,
   }) : super(
           id: id,
           type: 'text',
           position: position,
           createdAt: createdAt,
+          metadata: metadata,
         );
 
   factory TextElement.fromJson(Map<String, dynamic> json) {
@@ -70,6 +77,7 @@ class TextElement extends NoteContentElement {
       isList: json['isList'] as bool? ?? false,
       textColor: json['textColor'] as String?,
       fontSize: json['fontSize'] as double?,
+      metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
 
@@ -79,6 +87,7 @@ class TextElement extends NoteContentElement {
         'type': type,
         'position': position,
         'createdAt': createdAt,
+        'metadata': metadata,
         'content': content,
         'isBold': isBold,
         'isItalic': isItalic,
@@ -104,11 +113,13 @@ class ImageElement extends NoteContentElement {
     this.filePath,
     this.width,
     this.height,
+    Map<String, dynamic>? metadata,
   }) : super(
           id: id,
           type: 'image',
           position: position,
           createdAt: createdAt,
+          metadata: metadata,
         );
 
   factory ImageElement.fromJson(Map<String, dynamic> json) {
@@ -121,6 +132,7 @@ class ImageElement extends NoteContentElement {
       filePath: json['filePath'] as String?,
       width: json['width'] as double?,
       height: json['height'] as double?,
+      metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
 
@@ -130,6 +142,7 @@ class ImageElement extends NoteContentElement {
         'type': type,
         'position': position,
         'createdAt': createdAt,
+        'metadata': metadata,
         'imageUrl': imageUrl,
         'caption': caption,
         'filePath': filePath,
@@ -152,11 +165,13 @@ class AudioElement extends NoteContentElement {
     this.title,
     this.filePath,
     this.duration,
+    Map<String, dynamic>? metadata,
   }) : super(
           id: id,
           type: 'audio',
           position: position,
           createdAt: createdAt,
+          metadata: metadata,
         );
 
   factory AudioElement.fromJson(Map<String, dynamic> json) {
@@ -168,6 +183,7 @@ class AudioElement extends NoteContentElement {
       title: json['title'] as String?,
       filePath: json['filePath'] as String?,
       duration: json['duration'] as double?,
+      metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
 
@@ -177,6 +193,7 @@ class AudioElement extends NoteContentElement {
         'type': type,
         'position': position,
         'createdAt': createdAt,
+        'metadata': metadata,
         'audioUrl': audioUrl,
         'title': title,
         'filePath': filePath,
