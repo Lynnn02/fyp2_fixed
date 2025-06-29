@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'widgets/game_completion_dialog.dart';
 
 class SortingGame extends StatefulWidget {
   final String chapterName;
@@ -144,12 +145,12 @@ class _SortingGameState extends State<SortingGame> {
         score += 10;
         correctItems++;
         _showFeedback = true;
-        _feedbackText = 'Correct! +10 points';
+        _feedbackText = _isBahasaMalaysia() ? 'Betul! +10 mata' : 'Correct! +10 points';
         _feedbackColor = Colors.green;
         _correctPlayer.resume();
       } else {
         _showFeedback = true;
-        _feedbackText = 'Oops! That\'s not right';
+        _feedbackText = _isBahasaMalaysia() ? 'Cuba lagi!' : 'Try again!';
         _feedbackColor = Colors.red;
         _incorrectPlayer.resume();
       }
@@ -165,8 +166,20 @@ class _SortingGameState extends State<SortingGame> {
     });
     
     // Check if game is over
+    _checkGameOver();
+  }
+  
+  void _checkGameOver() {
     if (remainingItems.isEmpty) {
-      _endGame();
+      setState(() {
+        isGameOver = true;
+      });
+      
+      _completionPlayer.resume();
+      
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _showCompletionDialog();
+      });
     }
   }
   
@@ -186,134 +199,28 @@ class _SortingGameState extends State<SortingGame> {
   void _showCompletionDialog() {
     final percentage = (correctItems / totalItems * 100).round();
     final starCount = percentage >= 80 ? 5 : percentage >= 60 ? 4 : percentage >= 40 ? 3 : 2;
-  
+    
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.all(20),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Congratulations text with celebration icon
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.celebration, color: Colors.amber, size: 30),
-                const SizedBox(width: 10),
-                const Text(
-                  'Congratulations!',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 28,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Icon(Icons.celebration, color: Colors.amber, size: 30),
-              ],
-            ),
-            const SizedBox(height: 20),
-            
-            // Star rating
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                return Icon(
-                  Icons.star,
-                  size: 40,
-                  color: index < starCount ? Colors.amber : Colors.grey.shade300,
-                );
-              }),
-            ),
-            const SizedBox(height: 20),
-            
-            // Completion message
-            Text(
-              'You sorted $correctItems out of $totalItems items correctly!',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 15),
-            
-            // Score display
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Text(
-                'Score: $score',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            // Category emojis
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var category in categories)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      category.emoji,
-                      style: const TextStyle(fontSize: 30),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 25),
-            
-            // Action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Retry button
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _resetGame();
-                  },
-                  icon: const Icon(Icons.replay),
-                  label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                
-                // Finish button
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop(); // Return to previous screen
-                  },
-                  icon: const Icon(Icons.check_circle),
-                  label: const Text('Finish'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+      builder: (context) => GameCompletionDialog(
+        points: score,
+        stars: starCount,
+        subject: widget.chapterName,
+        minutes: 1,
+        onTryAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _initializeGame();
+            isGameOver = false;
+            score = 0;
+            correctItems = 0;
+          });
+        },
+        onContinue: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop(); // Return to previous screen
+        },
       ),
     );
   }
@@ -324,26 +231,67 @@ class _SortingGameState extends State<SortingGame> {
     });
   }
   
+  // Helper method to check if this is a Bahasa Malaysia subject
+  bool _isBahasaMalaysia() {
+    return widget.gameContent != null && 
+        widget.gameContent!['title'] != null && 
+        widget.gameContent!['title'].toString().contains('Bahasa Malaysia');
+  }
+  
   void _showGuideDialog(BuildContext context) {
+    // Check if this is a Bahasa Malaysia subject
+    final bool isMalay = _isBahasaMalaysia();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('How to Play', 
-          style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold),
+        title: Text(
+          isMalay ? 'Cara Bermain' : 'How to Play', 
+          style: const TextStyle(color: Colors.purple, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Goal:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('Sort all items into their correct categories.'),
+            Text(
+              isMalay ? 'Matlamat:' : 'Goal:', 
+              style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
+            Text(
+              isMalay 
+                ? 'Susun semua item ke dalam kategori yang betul.'
+                : 'Sort all items into their correct categories.'
+            ),
             const SizedBox(height: 12),
-            const Text('Instructions:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('1. Drag each item to its matching category at the top.'),
-            const Text('2. If you sort correctly, you will earn points!'),
-            const Text('3. Try to sort all items correctly.'),
+            Text(
+              isMalay ? 'Arahan:' : 'Instructions:', 
+              style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
+            Text(
+              isMalay 
+                ? '1. Seret setiap item ke kategori yang sepadan di bahagian atas.'
+                : '1. Drag each item to its matching category at the top.'
+            ),
+            Text(
+              isMalay 
+                ? '2. Jika anda menyusun dengan betul, anda akan mendapat mata!'
+                : '2. If you sort correctly, you will earn points!'
+            ),
+            Text(
+              isMalay 
+                ? '3. Cuba susun semua item dengan betul.'
+                : '3. Try to sort all items correctly.'
+            ),
             const SizedBox(height: 12),
-            const Text('Categories:', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              isMalay ? 'Kategori:' : 'Categories:', 
+              style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
+            Text(
+              isMalay 
+                ? 'Setiap kategori ditunjukkan di bahagian atas skrin.'
+                : 'Each category is shown at the top of the screen.'
+            ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -365,13 +313,15 @@ class _SortingGameState extends State<SortingGame> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it!'),
+            child: Text(isMalay ? 'Faham!' : 'Got it!'),
           ),
         ],
       ),
     );
   }
   
+  // This duplicate method was removed to fix the compilation error
+
   @override
   void dispose() {
     _correctPlayer.dispose();
@@ -387,16 +337,25 @@ class _SortingGameState extends State<SortingGame> {
         ? widget.gameContent!['title']
         : 'Sorting Game: ${widget.chapterName}';
     
+    // Get instructions text from game content or use default
+    final String instructionsText = widget.gameContent?['instructions'] ?? 
+        (_isBahasaMalaysia() ? 'Susun item ke dalam kategori yang betul.' : 'Sort items into the correct categories.');
+    
     return Scaffold(
       appBar: AppBar(
-        title: Text(gameTitle),
+        title: Text(widget.gameContent?['title'] ?? 'Sorting Game'),
         backgroundColor: Colors.purple,
         actions: [
           // Help button
           IconButton(
             icon: const Icon(Icons.help_outline),
             onPressed: () => _showGuideDialog(context),
-            tooltip: 'How to Play',
+            tooltip: _isBahasaMalaysia() ? 'Cara Bermain' : 'How to Play',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _resetGame,
+            tooltip: _isBahasaMalaysia() ? 'Mulakan semula' : 'Reset',
           ),
         ],
       ),
@@ -435,7 +394,7 @@ class _SortingGameState extends State<SortingGame> {
                           const Icon(Icons.star, color: Colors.amber),
                           const SizedBox(width: 8),
                           Text(
-                            'Score: $score',
+                            _isBahasaMalaysia() ? 'Mata: $score' : 'Score: $score',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -462,7 +421,9 @@ class _SortingGameState extends State<SortingGame> {
                           const Icon(Icons.checklist, color: Colors.green),
                           const SizedBox(width: 8),
                           Text(
-                            'Items: ${totalItems - remainingItems.length}/$totalItems',
+                            _isBahasaMalaysia() 
+                              ? 'Item: ${totalItems - remainingItems.length}/$totalItems'
+                              : 'Items: ${totalItems - remainingItems.length}/$totalItems',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -559,9 +520,9 @@ class _SortingGameState extends State<SortingGame> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text(
-                              'Game Over!',
-                              style: TextStyle(
+                            Text(
+                              _isBahasaMalaysia() ? 'Permainan Tamat!' : 'Game Over!',
+                              style: const TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.purple,
@@ -577,9 +538,9 @@ class _SortingGameState extends State<SortingGame> {
                                   vertical: 12,
                                 ),
                               ),
-                              child: const Text(
-                                'Play Again',
-                                style: TextStyle(
+                              child: Text(
+                                _isBahasaMalaysia() ? 'Main Lagi' : 'Play Again',
+                                style: const TextStyle(
                                   fontSize: 18,
                                   color: Colors.white,
                                 ),

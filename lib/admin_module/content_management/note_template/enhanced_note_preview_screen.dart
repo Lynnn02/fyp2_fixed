@@ -9,7 +9,7 @@ import '../../../models/container_element.dart';
 import '../../../models/subject.dart';
 import '../../../services/flashcard_service.dart';
 import '../../../services/flashcard_media_service.dart';
-import '../../../services/gemini_service.dart';
+import '../../../services/gemini_notes_service.dart';
 import '../../../utils/language_detector.dart';
 
 class EnhancedNotePreviewScreen extends StatefulWidget {
@@ -46,7 +46,7 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   
   // Initialize the flashcard service
   final FlashcardService _flashcardService = FlashcardService();
-  final GeminiService _geminiService = GeminiService();
+  final GeminiNotesService _geminiService = GeminiNotesService();
   
   // Page view controller
   late PageController _pageController;

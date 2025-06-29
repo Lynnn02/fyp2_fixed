@@ -97,16 +97,29 @@ class _MatchingGameState extends State<MatchingGame> {
     // Create pairs of words and images
     List<MatchingPair> pairs = [];
     
-    // Check if we have dynamic content from Gemini
+    print('🔍 MatchingGame: Initializing game with content: ${widget.gameContent != null ? 'PROVIDED' : 'NULL'}');
+    if (widget.gameContent != null) {
+      print('📦 Content keys: ${widget.gameContent!.keys.toList()}');
+    }
+    
+    // Check if we have dynamic content
     if (widget.gameContent != null && widget.gameContent!['pairs'] != null) {
-      // Use dynamic content from Gemini
+      print('✅ Found pairs in game content');
+      // Use dynamic content from template or Gemini
       final dynamicPairs = widget.gameContent!['pairs'] as List;
+      print('📦 Number of pairs: ${dynamicPairs.length}');
       
       for (var pair in dynamicPairs) {
+        // Check if we have malay_word field (from our templates)
+        final displayWord = pair.containsKey('malay_word') ? pair['malay_word'] : pair['word'];
+        final description = pair.containsKey('description') ? pair['description'] : '';
+        
+        print('📦 Adding pair: $displayWord - ${pair['emoji']} - $description');
         pairs.add(MatchingPair(
-          word: pair['word'],
+          word: displayWord, // Use malay_word if available
           imageAsset: '', // We don't use image assets with dynamic content
           emoji: pair['emoji'],
+          description: description,
         ));
       }
     } else {
@@ -128,9 +141,12 @@ class _MatchingGameState extends State<MatchingGame> {
       final wordId = id++;
       final imageId = id++;
       
+      // Use description if available for display
+      final displayContent = pair.description.isNotEmpty ? pair.description : pair.word;
+      
       items.add(MatchingItem(
         id: wordId,
-        content: pair.word,
+        content: displayContent, // Show description if available
         matchId: imageId,
         pairName: pair.word.toLowerCase(), // Use this for matching logic
         type: ItemType.word,
@@ -705,11 +721,13 @@ class MatchingPair {
   final String word;
   final String imageAsset;
   final String emoji;
+  final String description;
   
   MatchingPair({
     required this.word,
     required this.imageAsset,
     required this.emoji,
+    this.description = '',
   });
 }
 

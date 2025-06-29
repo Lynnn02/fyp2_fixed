@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/subject.dart'; // Contains both Subject and Chapter classes
 import '../../../widgets/custom_app_bar.dart';
 import 'enhanced_note_preview_screen.dart';
-import '../../../services/gemini_service.dart';
+import '../../../services/gemini_notes_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -26,7 +26,7 @@ class NoteTemplateSelectionScreen extends StatefulWidget {
 }
 
 class _NoteTemplateSelectionScreenState extends State<NoteTemplateSelectionScreen> {
-  final GeminiService _geminiService = GeminiService();
+  final GeminiNotesService _geminiService = GeminiNotesService();
   bool _isLoading = false;
   String _detectedLanguage = 'en';
   late int _selectedAge;

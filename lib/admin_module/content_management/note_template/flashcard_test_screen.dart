@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../../models/note_content.dart';
 import '../../../models/container_element.dart';
 import '../../../services/flashcard_media_service.dart';
@@ -27,6 +28,13 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
   List<Map<String, dynamic>> _flashcards = [];
   int _currentCardIndex = 0;
   
+  // Audio state
+  final AudioPlayer _contentAudioPlayer = AudioPlayer();
+  final AudioPlayer _bgMusicPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  bool _isBgMusicPlaying = false;
+  bool _showDebugInfo = false;
+  
   // Template manager for generating flashcards
   final EnhancedNoteTemplateManager _templateManager = EnhancedNoteTemplateManager();
   
@@ -37,6 +45,91 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
   void initState() {
     super.initState();
     _generateTestFlashcards();
+    _setupBackgroundMusicPlayer();
+    
+    // Set up audio player completion listener
+    _contentAudioPlayer.onPlayerComplete.listen((event) {
+      setState(() {
+        _isPlaying = false;
+      });
+    });
+  }
+  
+  // Play audio for flashcards
+  Future<void> _playAudio(String url) async {
+    // If already playing, stop the audio
+    if (_isPlaying) {
+      await _contentAudioPlayer.stop();
+      setState(() {
+        _isPlaying = false;
+      });
+      return;
+    }
+    
+    // Check if URL is valid
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No audio available for this flashcard')),
+      );
+      return;
+    }
+    
+    try {
+      setState(() {
+        _isPlaying = true;
+      });
+      
+      await _contentAudioPlayer.stop();
+      await _contentAudioPlayer.setSource(UrlSource(url));
+      await _contentAudioPlayer.resume();
+      
+      // The onPlayerComplete listener will set _isPlaying to false when done
+    } catch (e) {
+      setState(() {
+        _isPlaying = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error playing audio: $e')),
+      );
+    }
+  }
+  
+  // Set up background music player with looping
+  void _setupBackgroundMusicPlayer() async {
+    try {
+      // Use a cheerful, child-friendly background music
+      const bgMusicUrl = 'https://example.com/childrens_background_music.mp3';
+      // You should replace this with an actual music URL or asset
+      // For now we'll just set it up without playing
+      _bgMusicPlayer.setReleaseMode(ReleaseMode.loop);
+      await _bgMusicPlayer.setSource(UrlSource(bgMusicUrl));
+    } catch (e) {
+      debugPrint('Error setting up background music: $e');
+    }
+  }
+  
+  // Toggle background music
+  Future<void> _toggleBackgroundMusic() async {
+    try {
+      if (_isBgMusicPlaying) {
+        await _bgMusicPlayer.pause();
+      } else {
+        await _bgMusicPlayer.resume();
+      }
+      
+      setState(() {
+        _isBgMusicPlaying = !_isBgMusicPlaying;
+      });
+    } catch (e) {
+      debugPrint('Error toggling background music: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _contentAudioPlayer.dispose();
+    _bgMusicPlayer.dispose();
+    super.dispose();
   }
   
   // Helper method to convert NoteContentElements to the format expected by the UI
@@ -50,11 +143,17 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
         String content = '';
         String imageUrl = '';
         String audioUrl = '';
+        String label = '';
+        String questionText = '';
         
         // Process child elements
         for (var child in element.elements) {
           if (child is TextElement) {
             content = child.content;
+            questionText = child.content; // Use content as the question text
+            if (questionText.isNotEmpty) {
+              label = questionText[0].toUpperCase(); // First letter as label
+            }
           } else if (child is ImageElement) {
             imageUrl = child.imageUrl ?? '';
           } else if (child is AudioElement) {
@@ -70,6 +169,12 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
           'audioUrl': audioUrl,
           'language': _selectedLanguage,
           'isRtl': _isRtl,
+          'label': label,
+          'question_text': questionText,
+          'fontFamily': _isRtl ? 'Amiri' : 'Roboto',
+          'textDirection': _isRtl ? 'rtl' : 'ltr',
+          'image_prompt': 'Image for $questionText',
+          'audio_prompt': 'Audio for $questionText'
         });
       }
     }
@@ -135,6 +240,50 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
     );
   }
   
+  // Toggle debug information display
+  void _toggleDebugInfo() {
+    setState(() {
+      _showDebugInfo = !_showDebugInfo;
+    });
+  }
+  
+  // Get a consistent color based on the first letter
+  Color _getColorForLetter(String letter) {
+    if (letter.isEmpty) return Colors.blue;
+    
+    // Map letters to colors
+    final Map<String, Color> colorMap = {
+      'A': Colors.red,
+      'B': Colors.blue,
+      'C': Colors.green,
+      'D': Colors.orange,
+      'E': Colors.purple,
+      'F': Colors.teal,
+      'G': Colors.pink,
+      'H': Colors.indigo,
+      'I': Colors.amber,
+      'J': Colors.cyan,
+      'K': Colors.deepOrange,
+      'L': Colors.lightBlue,
+      'M': Colors.lightGreen,
+      'N': Colors.deepPurple,
+      'O': Colors.brown,
+      'P': Colors.blueGrey,
+      'Q': Colors.lime,
+      'R': Colors.red.shade800,
+      'S': Colors.blue.shade800,
+      'T': Colors.green.shade800,
+      'U': Colors.orange.shade800,
+      'V': Colors.purple.shade800,
+      'W': Colors.teal.shade800,
+      'X': Colors.pink.shade800,
+      'Y': Colors.indigo.shade800,
+      'Z': Colors.amber.shade800,
+    };
+    
+    return colorMap[letter] ?? Colors.blue;
+  }
+  
   void _previousCard() {
     if (_currentCardIndex > 0) {
       setState(() {
@@ -149,6 +298,13 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
       appBar: AppBar(
         title: const Text('Flashcard Test'),
         actions: [
+          // Debug toggle button
+          IconButton(
+            icon: Icon(_showDebugInfo ? Icons.bug_report : Icons.bug_report_outlined),
+            onPressed: _toggleDebugInfo,
+            tooltip: 'Toggle debug information',
+          ),
+          // Regenerate button
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _regenerateFlashcards,
@@ -332,97 +488,197 @@ class _FlashcardTestScreenState extends State<FlashcardTestScreen> {
     
     final bool isRtl = textDirection == 'rtl';
     
+    // Get first letter of the word for the top display
+    String firstLetter = questionText.isNotEmpty ? questionText[0].toUpperCase() : '';
+    
+    // Generate background color based on the first letter
+    Color backgroundColor = _getColorForLetter(firstLetter);
+    
     return Card(
       margin: const EdgeInsets.all(16),
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Directionality(
         textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+        child: Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Stack(
             children: [
-              // Label
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: fontFamily,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              
-              // Image
-              if (imageUrl.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    imageUrl,
-                    height: 200,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 200,
-                        width: double.infinity,
-                        color: Colors.grey[300],
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.image_not_supported, size: 48),
-                              const SizedBox(height: 8),
-                              Text(imagePrompt),
+              // Main content
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Large first letter at the top
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20.0),
+                    child: Text(
+                      firstLetter,
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: fontFamily,
+                        shadows: [
+                          Shadow(
+                            offset: const Offset(1.0, 1.0),
+                            blurRadius: 2.0,
+                            color: Colors.black.withOpacity(0.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Image in center with white container
+                  Expanded(
+                    flex: 3,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Image container
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                spreadRadius: 1,
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
                             ],
                           ),
+                          padding: const EdgeInsets.all(16.0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8.0),
+                            child: imageUrl.isNotEmpty
+                              ? Image.network(
+                                  imageUrl,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(
+                                    Icons.image_not_supported,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.image_not_supported,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                          ),
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
-                ),
-              const SizedBox(height: 24),
+                  
+                  // Word at the bottom
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      questionText,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        fontFamily: fontFamily,
+                        shadows: [
+                          Shadow(
+                            offset: const Offset(1.0, 1.0),
+                            blurRadius: 2.0,
+                            color: Colors.black.withOpacity(0.5),
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
               
-              // Question text (for age 5+)
-              if (_selectedAge >= 5 && questionText.isNotEmpty)
-                Text(
-                  questionText,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontFamily: fontFamily,
+              // Content audio button (top-right)
+              Positioned(
+                top: 20.0,
+                right: 32.0,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20.0),
+                      onTap: () => _playAudio(audioUrl),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Icon(
+                          _isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
+                          size: 24.0,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ),
                   ),
-                  textAlign: TextAlign.center,
                 ),
-              const SizedBox(height: 16),
+              ),
               
-              // Audio button (for age 4-5)
-              if ((_selectedAge == 4 || _selectedAge == 5) && audioUrl.isNotEmpty)
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.volume_up),
-                  label: Text(
-                    'Listen',
-                    style: TextStyle(fontFamily: fontFamily),
+              // Background music button (top-left)
+              Positioned(
+                top: 20.0,
+                left: 32.0,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20.0),
+                      onTap: _toggleBackgroundMusic,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Icon(
+                          _isBgMusicPlaying ? Icons.music_note : Icons.music_off,
+                          size: 24.0,
+                          color: _isBgMusicPlaying ? Colors.green : Colors.grey,
+                        ),
+                      ),
+                    ),
                   ),
-                  onPressed: () {
-                    // Audio playback would go here
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Playing audio: $audioPrompt')),
-                    );
-                  },
                 ),
+              ),
               
               // Debug info
-              const Spacer(),
-              Divider(),
-              Text(
-                'Debug Info',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text('Font: $fontFamily'),
-              Text('Direction: $textDirection'),
-              Text('Image Prompt: $imagePrompt'),
-              Text('Audio Prompt: $audioPrompt'),
+              if (_showDebugInfo)
+                Positioned(
+                  bottom: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    color: Colors.black.withOpacity(0.7),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Debug Info',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        Text('Font: $fontFamily', style: const TextStyle(color: Colors.white)),
+                        Text('Direction: $textDirection', style: const TextStyle(color: Colors.white)),
+                        Text('Image Prompt: $imagePrompt', style: const TextStyle(color: Colors.white)),
+                        Text('Audio Prompt: $audioPrompt', style: const TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

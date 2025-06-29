@@ -7,7 +7,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/gemini_service.dart';
+import '../services/gemini_notes_service.dart';
 import '../models/subject.dart';
 import '../models/note_content.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -36,8 +36,9 @@ class FlashcardWidget extends StatefulWidget {
 }
 
 class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderStateMixin {
-  final GeminiService _geminiService = GeminiService();
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final GeminiNotesService _geminiService = GeminiNotesService();
+  final AudioPlayer _contentAudioPlayer = AudioPlayer(); // For flashcard content audio
+  final AudioPlayer _bgMusicPlayer = AudioPlayer(); // For background music
   final FlutterTts _flutterTts = FlutterTts();
   final CardSwiperController _cardController = CardSwiperController();
   
@@ -46,7 +47,8 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
   bool _isError = false;
   String _errorMessage = '';
   int _currentIndex = 0;
-  bool _isPlaying = false;
+  bool _isContentPlaying = false; // For flashcard content audio
+  bool _isBgMusicPlaying = false; // For background music
   
   // Animation controllers
   late AnimationController _flipController;
@@ -79,8 +81,9 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
   
   @override
   void dispose() {
+    _contentAudioPlayer.dispose();
+    _bgMusicPlayer.dispose();
     _flipController.dispose();
-    _audioPlayer.dispose();
     _flutterTts.stop();
     super.dispose();
   }
@@ -212,31 +215,54 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
     }
   }
   
-  // Play audio from URL
-  Future<void> _playAudio(String url) async {
-    if (_isPlaying) {
-      await _audioPlayer.stop();
+  // Play content audio from URL (word or animal sound)
+  Future<void> _playContentAudio(String url) async {
+    if (_isContentPlaying) {
+      await _contentAudioPlayer.stop();
     }
     
     setState(() {
-      _isPlaying = true;
+      _isContentPlaying = true;
     });
     
     try {
-      await _audioPlayer.play(UrlSource(url));
-      _audioPlayer.onPlayerComplete.listen((event) {
+      await _contentAudioPlayer.play(UrlSource(url));
+      _contentAudioPlayer.onPlayerComplete.listen((event) {
         setState(() {
-          _isPlaying = false;
+          _isContentPlaying = false;
         });
       });
     } catch (e) {
       setState(() {
-        _isPlaying = false;
+        _isContentPlaying = false;
       });
       
       // Fallback to TTS if audio URL fails
       if (_flashcards.isNotEmpty && _currentIndex < _flashcards.length) {
         _flutterTts.speak(_flashcards[_currentIndex].questionText);
+      }
+    }
+  }
+  
+  // Toggle background music
+  Future<void> _toggleBackgroundMusic() async {
+    if (_isBgMusicPlaying) {
+      await _bgMusicPlayer.pause();
+      setState(() {
+        _isBgMusicPlaying = false;
+      });
+    } else {
+      // Background music URL - use a cheerful, child-friendly tune
+      const String bgMusicUrl = 'https://firebasestorage.googleapis.com/v0/b/fyp-app-a0b2e.appspot.com/o/background_music%2Fcheerful_learning.mp3?alt=media';
+      
+      try {
+        await _bgMusicPlayer.play(UrlSource(bgMusicUrl));
+        _bgMusicPlayer.setReleaseMode(ReleaseMode.loop); // Loop the background music
+        setState(() {
+          _isBgMusicPlaying = true;
+        });
+      } catch (e) {
+        print('Error playing background music: $e');
       }
     }
   }
@@ -263,7 +289,7 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
     
     // For age 4, autoplay audio on card change
     if (widget.age == 4 && _flashcards.isNotEmpty) {
-      _playAudio(_flashcards[index].audioUrl);
+      _playContentAudio(_flashcards[index].audioUrl);
     }
   }
   
@@ -405,7 +431,38 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
     );
   }
   
+  // Get a consistent color for a flashcard based on its content
+  Color _getCardColor(FlashcardItem card) {
+    // List of bright, kid-friendly colors
+    final List<Color> cardColors = [
+      Color(0xFF8E44AD), // Purple
+      Color(0xFF3498DB), // Blue
+      Color(0xFF1ABC9C), // Teal
+      Color(0xFFE74C3C), // Red
+      Color(0xFF2ECC71), // Green
+      Color(0xFFF39C12), // Orange
+      Color(0xFF7F8C8D), // Gray
+      Color(0xFFD35400), // Dark Orange
+      Color(0xFF27AE60), // Emerald
+      Color(0xFF8E44AD), // Purple
+      Color(0xFFE67E22), // Carrot
+      Color(0xFF16A085), // Green Sea
+    ];
+    
+    // Use the first letter of the question text to determine the color
+    if (card.questionText.isNotEmpty) {
+      final int charCode = card.questionText.toLowerCase().codeUnitAt(0);
+      return cardColors[charCode % cardColors.length];
+    }
+    
+    // Default color if no text
+    return cardColors[0];
+  }
+
   Widget _buildFlashcard(FlashcardItem card, {bool isSelected = false}) {
+    // Get a consistent color for this card
+    final cardColor = _getCardColor(card);
+    
     return AnimatedBuilder(
       animation: _flipAnimation,
       builder: (context, child) {
@@ -420,10 +477,11 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
             alignment: Alignment.center,
             child: Card(
               elevation: isSelected ? 8 : 4,
+              color: cardColor, // Apply the card color
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16.0),
                 side: isSelected 
-                  ? BorderSide(color: Theme.of(context).primaryColor, width: 2.0)
+                  ? BorderSide(color: Colors.white, width: 2.0)
                   : BorderSide.none,
               ),
               child: _isFlipped 
@@ -437,59 +495,155 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
   }
   
   Widget _buildCardFront(FlashcardItem card) {
+    // Extract the first letter of the question text for the top letter display
+    String firstLetter = '';
+    if (card.questionText.isNotEmpty) {
+      firstLetter = card.questionText[0].toUpperCase();
+    }
+    
     return Container(
       padding: const EdgeInsets.all(16.0),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Image always shown for all age groups
-          Expanded(
-            flex: 3,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: CachedNetworkImage(
-                imageUrl: card.imageUrl,
-                fit: BoxFit.contain,
-                placeholder: (context, url) => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-                errorWidget: (context, url, error) => const Icon(
-                  Icons.image_not_supported,
-                  size: 64,
-                ),
+          // Top letter display
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              firstLetter,
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontFamily: _getFontFamily(),
+                shadows: [
+                  Shadow(
+                    offset: Offset(1.0, 1.0),
+                    blurRadius: 3.0,
+                    color: Colors.black.withOpacity(0.5),
+                  ),
+                ],
               ),
             ),
           ),
           
-          const SizedBox(height: 16),
-          
-          // Question text shown for age 5 and 6
-          if (widget.age >= 5)
-            Expanded(
-              flex: 1,
-              child: Text(
-                card.questionText,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontFamily: _getFontFamily(),
+          // Center image with sound button overlay
+          Expanded(
+            flex: 3,
+            child: Stack(
+              alignment: Alignment.topRight,
+              children: [
+                // Image container
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(16.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: CachedNetworkImage(
+                      imageUrl: card.imageUrl,
+                      fit: BoxFit.contain,
+                      placeholder: (context, url) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (context, url, error) => const Icon(
+                        Icons.image_not_supported,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 3,
-              ),
+                
+                // Content sound button overlay (for word/animal sound)
+                Positioned(
+                  top: 24.0,
+                  right: 32.0,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20.0),
+                        onTap: () => _playContentAudio(card.audioUrl),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Icon(
+                            _isContentPlaying ? Icons.volume_up : Icons.volume_up_outlined,
+                            size: 24.0,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Background music toggle button
+                Positioned(
+                  top: 24.0,
+                  left: 32.0,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20.0),
+                        onTap: _toggleBackgroundMusic,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Icon(
+                            _isBgMusicPlaying ? Icons.music_note : Icons.music_off,
+                            size: 24.0,
+                            color: _isBgMusicPlaying ? Theme.of(context).primaryColor : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
           
-          const SizedBox(height: 8),
-          
-          // Audio button shown only for age 5
-          if (widget.age == 5)
-            IconButton(
-              icon: Icon(
-                _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                size: 48,
-                color: Theme.of(context).primaryColor,
+          // Bottom word display
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Text(
+              card.questionText,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                fontFamily: _getFontFamily(),
+                shadows: [
+                  Shadow(
+                    offset: Offset(1.0, 1.0),
+                    blurRadius: 2.0,
+                    color: Colors.black.withOpacity(0.5),
+                  ),
+                ],
               ),
-              onPressed: () => _playAudio(card.audioUrl),
+              textAlign: TextAlign.center,
             ),
+          ),
         ],
       ),
     );
@@ -505,8 +659,18 @@ class _FlashcardWidgetState extends State<FlashcardWidget> with TickerProviderSt
             child: Center(
               child: Text(
                 card.answerText,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                   fontFamily: _getFontFamily(),
+                  shadows: [
+                    Shadow(
+                      offset: Offset(1.0, 1.0),
+                      blurRadius: 3.0,
+                      color: Colors.black.withOpacity(0.5),
+                    ),
+                  ],
                 ),
                 textAlign: TextAlign.center,
               ),

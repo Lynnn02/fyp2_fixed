@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../../../services/game_template_manager.dart';
 import '../../../game_template/matching_game.dart';
-import '../../../game_template/picture_recognition_game.dart';
+import '../../../game_template/sorting_game.dart';
+import '../../../game_template/tracing_game.dart';
 import '../../../game_template/shape_color_game.dart';
-import '../../../game_template/animal_sounds_game.dart';
 import '../../../services/database_service.dart';
 
 class GameTemplatePreviewScreen extends StatefulWidget {
@@ -142,8 +142,8 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
           ageGroup: widget.ageGroup,
         );
         
-      case 'picture_recognition':
-        return PictureRecognitionGame(
+      case 'sorting':
+        return SortingGame(
           chapterName: widget.chapterName,
           gameContent: widget.gameContent,
           userId: previewUserId,
@@ -166,8 +166,8 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
           ageGroup: widget.ageGroup,
         );
         
-      case 'animal_sounds':
-        return AnimalSoundsGame(
+      case 'tracing':
+        return TracingGame(
           chapterName: widget.chapterName,
           gameContent: widget.gameContent,
           userId: previewUserId,

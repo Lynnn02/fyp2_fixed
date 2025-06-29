@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../../widgets/activity_completion_screen.dart';
+import 'widgets/game_completion_dialog.dart';
 
 class TracingGame extends StatefulWidget {
   final String chapterName;
@@ -92,10 +92,17 @@ class _TracingGameState extends State<TracingGame> {
           ));
         } else {
           // Handle standard content format
+          // Check if this is Bahasa Malaysia content and use malay_word if available
+          final bool isBahasaMalaysia = widget.gameContent != null && 
+              widget.gameContent!['title'] != null && 
+              widget.gameContent!['title'].toString().toLowerCase().contains('bahasa malaysia');
+          
           tracingItems.add(TracingItem(
             character: item['character'] ?? 'A',
             emoji: item['emoji'] ?? '🍎',
-            word: item['word'] ?? 'Apple',
+            word: isBahasaMalaysia && item['malay_word'] != null 
+                ? item['malay_word'] 
+                : item['word'] ?? 'Apple',
             difficulty: item['difficulty'] ?? 1,
           ));
         }
@@ -262,31 +269,6 @@ class _TracingGameState extends State<TracingGame> {
     final duration = now.difference(_startTime);
     _studyMinutes = (duration.inSeconds / 60).ceil(); // Round up to nearest minute
     
-    // Show completion screen with animation and sound
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        pageBuilder: (context, animation, secondaryAnimation) => ActivityCompletionScreen(
-          activityType: 'game',
-          activityName: 'Tracing Game: ${widget.chapterName}',
-          subject: _subject,
-          points: _pointsEarned,
-          studyMinutes: _studyMinutes,
-          userId: _userId,
-          onContinue: () {
-            Navigator.of(context).pop();
-          },
-          onRestart: () {
-            Navigator.of(context).pop();
-            _resetGame();
-          },
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-      ),
-    );
-    
     // Calculate percentage for star rating
     final percentage = (_pointsEarned / _totalPoints * 100).round();
     final starCount = percentage >= 80 ? 5 : percentage >= 60 ? 4 : percentage >= 40 ? 3 : 2;
@@ -294,138 +276,30 @@ class _TracingGameState extends State<TracingGame> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.all(20),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Congratulations text with celebration icon
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.celebration, color: Colors.amber, size: 30),
-                const SizedBox(width: 10),
-                const Text(
-                  'Congratulations!',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 28,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Icon(Icons.celebration, color: Colors.amber, size: 30),
-              ],
-            ),
-            const SizedBox(height: 20),
-            
-            // Star rating
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                return Icon(
-                  Icons.star,
-                  size: 40,
-                  color: index < starCount ? Colors.amber : Colors.grey.shade300,
-                );
-              }),
-            ),
-            const SizedBox(height: 20),
-            
-            // Completion message
-            const Text(
-              'You completed all the tracing exercises!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 15),
-            
-            // Score display
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Text(
-                'Points: $_pointsEarned / $_totalPoints',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            // Emoji row from completed items
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < min(5, tracingItems.length); i++)
-                  Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: Text(
-                      tracingItems[i].emoji,
-                      style: const TextStyle(fontSize: 30),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 25),
-            
-            // Action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Retry button
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _resetGame();
-                  },
-                  icon: const Icon(Icons.replay),
-                  label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                
-                // Finish button
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop(); // Return to previous screen
-                  },
-                  icon: const Icon(Icons.check_circle),
-                  label: const Text('Finish'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+      builder: (context) => GameCompletionDialog(
+        points: _pointsEarned,
+        stars: starCount,
+        subject: widget.chapterName,
+        minutes: _studyMinutes,
+        onTryAgain: () {
+          Navigator.of(context).pop();
+          _resetGame();
+        },
+        onContinue: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop(); // Return to previous screen
+        },
       ),
     );
   }
   
   void _resetGame() {
     setState(() {
-      isCompleted = false;
       _strokes.clear();
+      currentItemIndex = 0;
+      isCompleted = false;
+      _pointsEarned = 0;
+      _progressPercent = 0.0;
       _initializeGame();
     });
   }
@@ -434,27 +308,57 @@ class _TracingGameState extends State<TracingGame> {
     // Get current tracing item
     final currentItem = tracingItems.isNotEmpty ? tracingItems[currentItemIndex] : null;
     
+    // Check if this is a Bahasa Malaysia subject
+    final bool isBahasaMalaysia = widget.gameContent != null && 
+        widget.gameContent!['title'] != null && 
+        widget.gameContent!['title'].toString().contains('Bahasa Malaysia');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('How to Play', 
-          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+        title: Text(
+          isBahasaMalaysia ? 'Cara Bermain' : 'How to Play', 
+          style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Goal:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('Practice writing letters by tracing them on the screen.'),
+            Text(
+              isBahasaMalaysia ? 'Matlamat:' : 'Goal:', 
+              style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
+            Text(
+              isBahasaMalaysia 
+                ? 'Berlatih menulis huruf dengan menjejak di skrin.'
+                : 'Practice writing letters by tracing them on the screen.'
+            ),
             const SizedBox(height: 12),
-            const Text('Instructions:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('1. Use your finger to trace over the gray letter.'),
-            const Text('2. Try to follow the shape of the letter carefully.'),
-            const Text('3. When you\'ve traced enough of the letter, you\'ll move to the next one.'),
+            Text(
+              isBahasaMalaysia ? 'Arahan:' : 'Instructions:', 
+              style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
+            Text(
+              isBahasaMalaysia 
+                ? '1. Gunakan jari anda untuk menjejak huruf kelabu.'
+                : '1. Use your finger to trace over the gray letter.'
+            ),
+            Text(
+              isBahasaMalaysia 
+                ? '2. Cuba ikut bentuk huruf dengan teliti.'
+                : '2. Try to follow the shape of the letter carefully.'
+            ),
+            Text(
+              isBahasaMalaysia 
+                ? '3. Apabila anda telah menjejak dengan cukup, anda akan beralih ke huruf seterusnya.'
+                : '3. When you\'ve traced enough of the letter, you\'ll move to the next one.'
+            ),
             const SizedBox(height: 12),
             if (currentItem != null) ...[  
-              Text('Current Letter: ${currentItem.character}', 
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                isBahasaMalaysia ? 'Huruf Semasa: ${currentItem.character}' : 'Current Letter: ${currentItem.character}', 
+                style: const TextStyle(fontWeight: FontWeight.bold)
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -467,15 +371,26 @@ class _TracingGameState extends State<TracingGame> {
               ),
             ],
             const SizedBox(height: 12),
-            const Text('Tips:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const Text('• Use the Clear button if you want to start over.'),
-            const Text('• Use the Skip button to move to the next letter.'),
+            Text(
+              isBahasaMalaysia ? 'Petua:' : 'Tips:', 
+              style: const TextStyle(fontWeight: FontWeight.bold)
+            ),
+            Text(
+              isBahasaMalaysia 
+                ? '• Gunakan butang Padam untuk memulakan semula.'
+                : '• Use the Clear button if you want to start over.'
+            ),
+            Text(
+              isBahasaMalaysia 
+                ? '• Gunakan butang Langkau untuk beralih ke huruf seterusnya.'
+                : '• Use the Skip button to move to the next letter.'
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it!'),
+            child: Text(isBahasaMalaysia ? 'Faham!' : 'Got it!'),
           ),
         ],
       ),
@@ -539,14 +454,23 @@ class _TracingGameState extends State<TracingGame> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Progress: ${(_progressPercent * 100).toInt()}%',
+                          // Use Malay text for Bahasa Malaysia subject
+                          widget.gameContent != null && 
+                              widget.gameContent!['title'] != null && 
+                              widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                              ? 'Kemajuan: ${(_progressPercent * 100).toInt()}%'
+                              : 'Progress: ${(_progressPercent * 100).toInt()}%',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
                         ),
                         Text(
-                          'Points: $_pointsEarned / $_totalPoints',
+                          widget.gameContent != null && 
+                              widget.gameContent!['title'] != null && 
+                              widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                              ? 'Mata: $_pointsEarned / $_totalPoints'
+                              : 'Points: $_pointsEarned / $_totalPoints',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -647,7 +571,12 @@ class _TracingGameState extends State<TracingGame> {
                             else
                               // For regular letters
                               Text(
-                                'Trace the letter "${tracingItems[currentItemIndex].character}"',
+                                // Use Malay instructions for Bahasa Malaysia subject
+                                widget.gameContent != null && 
+                                    widget.gameContent!['title'] != null && 
+                                    widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                                    ? 'Jejak huruf "${tracingItems[currentItemIndex].character}"'
+                                    : 'Trace the letter "${tracingItems[currentItemIndex].character}"',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontStyle: FontStyle.italic,
@@ -724,9 +653,14 @@ class _TracingGameState extends State<TracingGame> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text(
-                                'All Done!',
-                                style: TextStyle(
+                              Text(
+                                // Use Malay text for Bahasa Malaysia subject
+                                widget.gameContent != null && 
+                                    widget.gameContent!['title'] != null && 
+                                    widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                                    ? 'Selesai!'
+                                    : 'All Done!',
+                                style: const TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.green,
@@ -742,9 +676,14 @@ class _TracingGameState extends State<TracingGame> {
                                     vertical: 12,
                                   ),
                                 ),
-                                child: const Text(
-                                  'Play Again',
-                                  style: TextStyle(
+                                child: Text(
+                                  // Use Malay text for Bahasa Malaysia subject
+                                  widget.gameContent != null && 
+                                      widget.gameContent!['title'] != null && 
+                                      widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                                      ? 'Main Lagi'
+                                      : 'Play Again',
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     color: Colors.white,
                                   ),
@@ -772,7 +711,14 @@ class _TracingGameState extends State<TracingGame> {
                           });
                         },
                         icon: const Icon(Icons.clear),
-                        label: const Text('Clear'),
+                        label: Text(
+                          // Use Malay text for Bahasa Malaysia subject
+                          widget.gameContent != null && 
+                              widget.gameContent!['title'] != null && 
+                              widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                              ? 'Padam'
+                              : 'Clear'
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade400,
                           foregroundColor: Colors.white,
@@ -781,7 +727,14 @@ class _TracingGameState extends State<TracingGame> {
                       ElevatedButton.icon(
                         onPressed: _skipCurrentItem,
                         icon: const Icon(Icons.skip_next),
-                        label: const Text('Skip'),
+                        label: Text(
+                          // Use Malay text for Bahasa Malaysia subject
+                          widget.gameContent != null && 
+                              widget.gameContent!['title'] != null && 
+                              widget.gameContent!['title'].toString().contains('Bahasa Malaysia')
+                              ? 'Langkau'
+                              : 'Skip'
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amber.shade700,
                           foregroundColor: Colors.white,

@@ -29,21 +29,66 @@ class FlashcardMediaService {
     }
   }
 
-  // Generate audio for flashcard based on prompt
+  // Generate audio for flashcard based on prompt using Gemini 2.5 Flash TTS API
   static Future<String> generateAudioUrl(String audioPrompt, String language) async {
     try {
-      // For now, we'll use a placeholder audio URL until the actual TTS is set up
-      // In a real implementation, you would call a TTS API
-      final String placeholderUrl = _getPlaceholderAudioUrl(audioPrompt, language);
+      // Clean the text to ensure it's suitable for TTS
+      final String cleanText = audioPrompt.trim();
+      if (cleanText.isEmpty) {
+        throw Exception('Empty text for audio generation');
+      }
       
-      // Log the audio generation request
-      debugPrint('Audio generation requested for prompt: $audioPrompt in language: $language');
-      debugPrint('Using placeholder audio: $placeholderUrl');
+      // Select appropriate voice based on language
+      String voice;
+      switch (language.toLowerCase()) {
+        case 'ar-sa':
+        case 'ar':
+          voice = 'ar-XA-Standard-A'; // Arabic voice
+          break;
+        case 'ms':
+        case 'ms-my':
+          voice = 'ms-MY-Standard-A'; // Malay voice
+          break;
+        case 'zh':
+        case 'zh-cn':
+          voice = 'cmn-CN-Standard-A'; // Chinese voice
+          break;
+        default:
+          voice = 'en-US-Standard-A'; // Default to English
+      }
       
-      return placeholderUrl;
+      debugPrint('Generating audio for: $cleanText in language: $language with voice: $voice');
+      
+      // Call Gemini 2.5 Flash TTS API
+      final response = await http.post(
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-audio:generateContent'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: jsonEncode({
+          'contents': [{'parts': [{'text': cleanText}]}],
+          'generation_config': {'voice': voice, 'speaking_rate': 1.0, 'pitch': 0.0}
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final audioContent = data['candidates']?[0]?['content']?['parts']?[0]?['audio_data'];
+        if (audioContent != null) {
+          debugPrint('Successfully generated audio data');
+          return 'data:audio/mp3;base64,$audioContent';
+        } else {
+          throw Exception('No audio content in response');
+        }
+      } else {
+        debugPrint('API Error: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to generate audio: ${response.statusCode}');
+      }
     } catch (e) {
       debugPrint('Error generating audio: $e');
-      return 'https://firebasestorage.googleapis.com/v0/b/fyp-app-a0b2e.appspot.com/o/note_audio%2Fdefault1.mp3?alt=media';
+      // Fall back to placeholder audio
+      return _getPlaceholderAudioUrl(audioPrompt, language);
     }
   }
 

@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:convert';
 import '../../../models/note_content.dart';
-import '../../../services/gemini_service.dart';
+import '../../../services/gemini_notes_service.dart';
 import 'flashcard_template_generator.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EnhancedNoteTemplateManager {
-  final GeminiService _geminiService = GeminiService();
+  final GeminiNotesService _geminiService = GeminiNotesService();
   
   // Map of chapter card rules for different subjects and chapters
   // Format: 'subject_chapter': {count: base card count, multiplier: age multiplier, bonus: additional cards}

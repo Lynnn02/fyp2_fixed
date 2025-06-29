@@ -7,15 +7,16 @@ import 'package:file_picker/file_picker.dart';
 import '../../models/subject.dart';
 import '../../models/note_content.dart';
 import '../../services/content_service.dart';
-import '../../services/gemini_service.dart';
+import '../../services/gemini_games_service.dart';
+import '../../services/gemini_notes_service.dart';
+import '../../services/game_template_manager.dart';
 import '../../widgets/admin_app_bar.dart';
 import '../../widgets/admin_scaffold.dart';
 import '../../widgets/admin_ui_style.dart';
 import 'game_template/game_template/matching_game.dart';
-import 'game_template/game_template/counting_game.dart';
-import 'game_template/game_template/puzzle_game.dart';
-import 'game_template/game_template/tracing_game.dart';
 import 'game_template/game_template/sorting_game.dart';
+import 'game_template/game_template/tracing_game.dart';
+import 'game_template/game_template/shape_color_game.dart';
 import '../../models/game.dart';
 
 import 'note_template/note_template_selection_screen.dart';
@@ -30,7 +31,8 @@ class ContentManagementScreen extends StatefulWidget {
 
 class _ContentManagementScreenState extends State<ContentManagementScreen> {
   final ContentService _contentService = ContentService();
-  final GeminiService _geminiService = GeminiService();
+  final GeminiGamesService _geminiService = GeminiGamesService();
+  final GeminiNotesService _geminiNotesService = GeminiNotesService();
   int _selectedAge = 4; // Default selected age
   bool _isGeneratingContent = false;
   int _selectedIndex = 2;
@@ -42,7 +44,6 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     
     return Expanded(
       child: InkWell(
-        onTap: () => _handleNavigation(index),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -62,27 +63,11 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     );
   }
   
-  void _handleNavigation(int index) {
-    if (index == 2) {
-      // Already on content screen
-      return;
-    }
-    
-    if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/adminHome');
-    } else if (index == 1) {
-      Navigator.pushReplacementNamed(context, '/userManagement');
-    } else if (index == 3) {
-      Navigator.pushReplacementNamed(context, '/analytics');
-    }
-  }
-  
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: 'Content Management',
       selectedIndex: 2, // Content tab is selected
-      onNavigate: _handleNavigation,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddSubjectDialog(context),
         backgroundColor: primaryColor,
@@ -1038,8 +1023,8 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     });
     
     try {
-      // Get AI-recommended game types for this subject and chapter
-      final List<String> suitableGameTypes = await _geminiService.getSuitableGameTypes(subject, chapter);
+      // Use the available game types instead of AI recommendation
+      final List<String> suitableGameTypes = ['matching', 'sorting', 'tracing', 'shape_color'];
       
       if (context.mounted) {
         setState(() {
@@ -1186,10 +1171,33 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       ),
     );
     
-    // Generate game content using Gemini AI
+    // Generate game content using our template system instead of Gemini AI
     Map<String, dynamic>? gameContent;
     try {
-      gameContent = await _geminiService.generateGameContent(gameType, subject, chapter);
+      // Print exact subject and chapter names
+      print('🔍 EXACT Subject Name: "${subject.name}"');
+      print('🔍 EXACT Chapter Name: "${chapter.name}"');
+      
+      // Use our GameTemplateManager to get content from templates
+      final templateManager = GameTemplateManager();
+      gameContent = await templateManager.getContentForSubjectAndChapter(
+        templateType: gameType,
+        subjectName: subject.name,
+        chapterName: chapter.name,
+        ageGroup: subject.moduleId,
+      );
+      
+      print('🔍 ContentManagementScreen: Game content received:');
+      if (gameContent != null) {
+        print('📦 Content keys: ${gameContent.keys.toList()}');
+        if (gameContent.containsKey('pairs')) {
+          print('✅ Found pairs: ${(gameContent['pairs'] as List).length} items');
+        } else {
+          print('❌ No pairs found in content');
+        }
+      } else {
+        print('❌ Game content is null');
+      }
     } catch (e) {
       print('Error generating game content: $e');
     }
@@ -1223,14 +1231,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         );
         break;
 
-      case 'counting':
-        appBarColor = Colors.amber;
-        gameWidget = CountingGame(chapterName: chapter.name, gameContent: gameContent);
-        break;
-      case 'puzzle':
-        appBarColor = Colors.orange;
-        gameWidget = PuzzleGame(chapterName: chapter.name, gameContent: gameContent);
-        break;
+      // Removed counting and puzzle cases as these templates are no longer supported
       case 'tracing':
         appBarColor = Colors.green;
         gameWidget = TracingGame(chapterName: chapter.name, gameContent: gameContent);
@@ -1238,6 +1239,19 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       case 'sorting':
         appBarColor = Colors.purple;
         gameWidget = SortingGame(chapterName: chapter.name, gameContent: gameContent);
+        break;
+      case 'shape_color':
+        appBarColor = Colors.orange;
+        gameWidget = ShapeColorGame(
+          chapterName: chapter.name, 
+          gameContent: gameContent,
+          userId: 'admin',
+          userName: 'Administrator',
+          subjectId: subject.id,
+          subjectName: subject.name,
+          chapterId: chapter.id,
+          ageGroup: subject.moduleId,
+        );
         break;
       default:
         appBarColor = Colors.purple;
@@ -1272,26 +1286,6 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                   },
                 ),
               ),
-            ],
-          ),
-          body: Column(
-            children: [
-              // Admin navigation bar
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildNavItem(context, 0, Icons.dashboard_outlined, 'Dashboard'),
-                    _buildNavItem(context, 1, Icons.people_outlined, 'Users'),
-                    _buildNavItem(context, 2, Icons.library_books_outlined, 'Content'),
-                    _buildNavItem(context, 3, Icons.analytics_outlined, 'Analytics'),
-                  ],
-                ),
-              ),
-              // Game content
-              Expanded(child: gameWidget),
             ],
           ),
         ),

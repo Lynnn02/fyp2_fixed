@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fyp2/models/note_content.dart';
 import 'package:fyp2/models/container_element.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class FlashcardService {
   // Base URL for the backend API
@@ -125,6 +126,10 @@ class FlashcardService {
       // Clean up the description - remove any markdown formatting
       description = description.replaceAll('**', '').trim();
       
+      // Generate emoji-based image instead of using API
+      return generateEmojiImage(description);
+      
+      /* Original API-based implementation
       // Add age-appropriate context to the description
       String enhancedDescription = age <= 4 
           ? 'Simple, colorful, cartoon-style image of $description for preschool children'
@@ -154,14 +159,181 @@ class FlashcardService {
       } else {
         throw Exception('Failed to generate image: ${response.statusCode}');
       }
+      */
     } catch (e) {
       print('Error generating image: $e');
-      // Return a placeholder image URL
-      return 'https://picsum.photos/id/${(age % 10) + 237}/300/200';
+      // Return a placeholder image URL using emoji
+      return generateEmojiImage(description);
     }
   }
   
-  // Generate audio through the backend proxy
+  // Generate an emoji-based image URL for flashcards
+  String generateEmojiImage(String description) {
+    // Normalize the description to lowercase for easier matching
+    final String normalizedDesc = description.toLowerCase();
+    
+    // Map common concepts to emojis
+    Map<String, String> emojiMap = {
+      // Animals
+      'dog': '🐕',
+      'cat': '🐈',
+      'lion': '🦁',
+      'tiger': '🐅',
+      'bear': '🐻',
+      'wolf': '🐺',
+      'fox': '🦊',
+      'deer': '🦌',
+      'cow': '🐄',
+      'pig': '🐖',
+      'horse': '🐎',
+      'sheep': '🐑',
+      'goat': '🐐',
+      'monkey': '🐒',
+      'elephant': '🐘',
+      'giraffe': '🦒',
+      'kangaroo': '🦘',
+      'penguin': '🐧',
+      'chicken': '🐔',
+      'duck': '🦆',
+      'eagle': '🦅',
+      'owl': '🦉',
+      'snake': '🐍',
+      'turtle': '🐢',
+      'fish': '🐠',
+      'dolphin': '🐬',
+      'whale': '🐋',
+      'octopus': '🐙',
+      'butterfly': '🦋',
+      'bee': '🐝',
+      'ant': '🐜',
+      'spider': '🕷️',
+      
+      // Fruits and food
+      'apple': '🍎',
+      'banana': '🍌',
+      'orange': '🍊',
+      'grape': '🍇',
+      'watermelon': '🍉',
+      'strawberry': '🍓',
+      'pineapple': '🍍',
+      'mango': '🥭',
+      'bread': '🍞',
+      'cheese': '🧀',
+      'pizza': '🍕',
+      'hamburger': '🍔',
+      'sandwich': '🥪',
+      'taco': '🌮',
+      'rice': '🍚',
+      'noodle': '🍜',
+      'ice cream': '🍦',
+      'cake': '🍰',
+      'cookie': '🍪',
+      
+      // Transportation
+      'car': '🚗',
+      'bus': '🚌',
+      'train': '🚂',
+      'airplane': '✈️',
+      'ship': '🚢',
+      'bicycle': '🚲',
+      'motorcycle': '🏍️',
+      'rocket': '🚀',
+      
+      // Weather and nature
+      'sun': '☀️',
+      'moon': '🌙',
+      'star': '⭐',
+      'cloud': '☁️',
+      'rain': '🌧️',
+      'snow': '❄️',
+      'mountain': '🏔️',
+      'tree': '🌳',
+      'flower': '🌸',
+      
+      // Sports and activities
+      'soccer': '⚽',
+      'basketball': '🏀',
+      'baseball': '⚾',
+      'tennis': '🎾',
+      'swimming': '🏊',
+      'running': '🏃',
+      'dancing': '💃',
+      'music': '🎵',
+      'book': '📚',
+      'painting': '🎨',
+      
+      // Objects
+      'house': '🏠',
+      'school': '🏫',
+      'hospital': '🏥',
+      'clock': '🕒',
+      'phone': '📱',
+      'computer': '💻',
+      'television': '📺',
+      'camera': '📷',
+      'light': '💡',
+      'key': '🔑',
+      'lock': '🔒',
+      'scissors': '✂️',
+      'pen': '🖊️',
+      'pencil': '✏️',
+      'book': '📕',
+      
+      // Alphabet and numbers
+      'letter a': '🅰️',
+      'letter b': '🅱️',
+      'number': '🔢',
+      
+      // Emotions and people
+      'happy': '😊',
+      'sad': '😢',
+      'angry': '😠',
+      'surprised': '😲',
+      'family': '👪',
+      'baby': '👶',
+      'boy': '👦',
+      'girl': '👧',
+      'man': '👨',
+      'woman': '👩',
+      
+      // Colors
+      'red': '🔴',
+      'blue': '🔵',
+      'green': '🟢',
+      'yellow': '🟡',
+      'orange': '🟠',
+      'purple': '🟣',
+      'black': '⚫',
+      'white': '⚪',
+      
+      // Jawi/Arabic related
+      'arabic': '🇸🇦',
+      'jawi': '🇲🇾'
+    };
+    
+    // Look for matches in the description
+    String emoji = '📄'; // Default emoji
+    
+    // Try to find the best matching emoji
+    for (var key in emojiMap.keys) {
+      if (normalizedDesc.contains(key)) {
+        emoji = emojiMap[key]!;
+        break;
+      }
+    }
+    
+    // Return a data URL for the emoji
+    // This creates a simple SVG with the emoji centered
+    final String svgContent = '''<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+      <rect width="300" height="300" fill="#f8f9fa" />
+      <text x="150" y="150" font-family="Arial" font-size="120" text-anchor="middle" dominant-baseline="central">${Uri.encodeComponent(emoji)}</text>
+    </svg>''';
+    
+    // Return the SVG as a data URL
+    return 'data:image/svg+xml;utf8,${Uri.encodeComponent(svgContent)}';
+  }
+  
+  // Generate audio using Gemini 2.5 TTS capabilities
   Future<String> generateAudio(String text, String language) async {
     try {
       // Clean up the text - remove any markdown formatting and extract the main content
@@ -177,28 +349,56 @@ class FlashcardService {
         }
       }
       
+      // Use the API key directly for development purposes
+      // In production, this should be stored securely
+      final apiKey = 'AIzaSyAdbHuVOYKWtaMLqGf65vOjKpLN6jLIKuo';
+      if (apiKey.isEmpty) {
+        throw Exception('Gemini API key not found');
+      }
+      
+      // Determine the appropriate voice based on language
+      String voice = 'en-US-Neural2-F'; // Default English voice
+      if (language.toLowerCase().contains('ar') || language.toLowerCase().contains('jawi')) {
+        voice = 'ar-XA-Standard-B'; // Arabic voice
+      } else if (language.toLowerCase().contains('ms') || language.toLowerCase().contains('malay')) {
+        voice = 'ms-MY-Standard-A'; // Malay voice
+      }
+      
+      // Use Gemini 2.5 Flash for audio generation via Google AI Studio API
       final response = await http.post(
-        Uri.parse('$_baseUrl/tts'),
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-audio:generateContent'),
         headers: {
           'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
         },
         body: jsonEncode({
-          'text': cleanText,
-          'language': language,
+          'contents': [{
+            'parts': [{
+              'text': cleanText
+            }]
+          }],
+          'generation_config': {
+            'voice': voice,
+            'speaking_rate': 1.0,
+            'pitch': 0.0
+          }
         }),
       );
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final audioUrl = data['audioUrl'];
         
-        // Validate the URL format
-        if (audioUrl != null && audioUrl.startsWith('http')) {
-          return audioUrl;
+        // Extract audio URL or base64 content from the response
+        final audioContent = data['candidates']?[0]?['content']?['parts']?[0]?['audio_data'];
+        
+        if (audioContent != null) {
+          // Create a data URL for the audio
+          return 'data:audio/mp3;base64,$audioContent';
         } else {
-          throw Exception('Invalid audio URL format');
+          throw Exception('No audio content in response');
         }
       } else {
+        print('TTS API error: ${response.body}');
         throw Exception('Failed to generate audio: ${response.statusCode}');
       }
     } catch (e) {

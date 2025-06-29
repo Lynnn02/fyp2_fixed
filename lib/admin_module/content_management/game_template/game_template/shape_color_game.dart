@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:async';
+import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../../services/score_service.dart';
-import '../../../../services/gemini_service.dart'; // For dynamic content generation
+import '../../../../services/gemini_games_service.dart'; // For dynamic content generation
+import 'widgets/game_completion_dialog.dart';
 
 class ShapeColorGame extends StatefulWidget {
   final String chapterName;
@@ -33,7 +35,7 @@ class ShapeColorGame extends StatefulWidget {
 
 class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStateMixin {
   // Gemini service for dynamic content
-  final GeminiService _geminiService = GeminiService();
+  final GeminiGamesService _geminiService = GeminiGamesService();
   // Game state
   late List<ShapeItem> _shapes;
   late ShapeItem _targetShape;
@@ -45,6 +47,9 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
   bool _showFeedback = false;
   bool _isCorrect = false;
   
+  // Store current options for shape selection
+  List<ShapeItem>? _currentOptions;
+  
   // Animation controllers
   late AnimationController _bounceController;
   late Animation<double> _bounceAnimation;
@@ -54,10 +59,9 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
   late Animation<double> _scaleAnimation;
   
   // Audio players
-  final AudioPlayer _correctPlayer = AudioPlayer();
-  final AudioPlayer _incorrectPlayer = AudioPlayer();
-  final AudioPlayer _completionPlayer = AudioPlayer();
-  final AudioPlayer _shapePlayer = AudioPlayer();
+  late AudioPlayer _correctPlayer;
+  late AudioPlayer _incorrectPlayer;
+  late AudioPlayer _completionPlayer;
   
   // Score service
   final ScoreService _scoreService = ScoreService();
@@ -75,7 +79,6 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
   void initState() {
     super.initState();
     _initializeGame();
-    _initAudio();
     _initAnimations();
   }
   
@@ -132,21 +135,17 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
     });
   }
   
-  void _initAudio() async {
-    await _correctPlayer.setSource(AssetSource('sounds/success.mp3'));
-    await _incorrectPlayer.setSource(AssetSource('sounds/error.mp3'));
-    await _completionPlayer.setSource(AssetSource('sounds/completion.mp3'));
-  }
-  
   @override
   void dispose() {
     _bounceController.dispose();
     _rotateController.dispose();
     _scaleController.dispose();
+    
+    // Dispose audio players
     _correctPlayer.dispose();
     _incorrectPlayer.dispose();
     _completionPlayer.dispose();
-    _shapePlayer.dispose();
+    
     super.dispose();
   }
   
@@ -163,16 +162,33 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
       final dynamicShapes = widget.gameContent!['shapes'] as List;
       
       for (var shape in dynamicShapes) {
+        // Use Malay properties if available
+        final displayName = shape.containsKey('malay_shape') ? 
+            '${shape['malay_shape']} ${shape.containsKey('malay_color') ? shape['malay_color'] : ''}' : 
+            shape['name'];
+            
         _shapes.add(ShapeItem(
-          name: shape['name'],
+          name: displayName,
           color: _getColorFromString(shape['color']),
           shapeName: shape['shape'],
-          soundUrl: shape['soundUrl'] ?? '',
         ));
       }
     } else {
       // Generate content based on subject and chapter
       await _generateDynamicContent();
+    }
+    
+    // Initialize audio players
+    _correctPlayer = AudioPlayer();
+    _incorrectPlayer = AudioPlayer();
+    _completionPlayer = AudioPlayer();
+    
+    try {
+      await _correctPlayer.setSource(AssetSource('sounds/success.mp3'));
+      await _incorrectPlayer.setSource(AssetSource('sounds/error.mp3'));
+      await _completionPlayer.setSource(AssetSource('sounds/completion.mp3'));
+    } catch (e) {
+      print('Error loading sound effects: $e');
     }
     
     // Shuffle shapes
@@ -231,12 +247,12 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
       1. A shape name (choose from: ${_gameShapes.join(', ')})
       2. A color name (choose from: red, blue, green, yellow, purple, orange, pink, teal, brown, indigo)
       3. A descriptive name that relates to the subject
-      4. A sound description
       
       Format as JSON array.
       ''';
       
-      final response = await _geminiService.generateContent(prompt);
+      // Using a simple string response for now since we don't need the full game content generation
+      final response = prompt; // Placeholder for API call
       
       // Parse the response and create shape items
       // This is a simplified parsing - in a real app, you'd want more robust JSON parsing
@@ -260,7 +276,6 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
                   name: name,
                   color: _getColorFromString(colorName),
                   shapeName: shapeName,
-                  soundUrl: 'sounds/${shapeName}_${colorName}.mp3',
                 ));
               }
             }
@@ -303,7 +318,6 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
             name: '$subjectPrefix${_getColorName(color)} $shape',
             color: color,
             shapeName: shape,
-            soundUrl: 'sounds/${shape}_${_getColorName(color)}.mp3',
           ));
         }
       }
@@ -343,13 +357,8 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
     setState(() {
       _targetShape = _shapes[_round % _shapes.length];
       _showFeedback = false;
+      _currentOptions = null; // Reset options for the new round
     });
-    
-    // Play shape sound if available
-    if (_targetShape.soundUrl.isNotEmpty) {
-      _shapePlayer.setSource(AssetSource(_targetShape.soundUrl));
-      _shapePlayer.resume();
-    }
     
     // Start animations
     _bounceController.forward();
@@ -361,8 +370,8 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
     bool isCorrect = selectedShape.name == _targetShape.name;
     
     setState(() {
-      _isCorrect = isCorrect;
       _showFeedback = true;
+      _isCorrect = isCorrect;
       
       if (isCorrect) {
         _score += 10;
@@ -394,6 +403,36 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
     if (!_scoreSubmitted) {
       _submitScore();
     }
+    
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _showCompletionDialog();
+    });
+  }
+  
+  void _showCompletionDialog() {
+    // Calculate stars based on score
+    int totalPossibleScore = _totalRounds * 10;
+    int percentage = (_score / totalPossibleScore * 100).round();
+    int stars = percentage >= 80 ? 5 : percentage >= 60 ? 4 : percentage >= 40 ? 3 : 2;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => GameCompletionDialog(
+        points: _score,
+        stars: stars,
+        subject: widget.chapterName,
+        minutes: 1,
+        onTryAgain: () {
+          Navigator.of(context).pop();
+          _restartGame();
+        },
+        onContinue: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop(); // Return to previous screen
+        },
+      ),
+    );
   }
   
   void _submitScore() {
@@ -438,13 +477,6 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
     
     _shapes.shuffle();
     _nextShape();
-  }
-  
-  void _playShapeSound() {
-    if (_targetShape.soundUrl.isNotEmpty) {
-      _shapePlayer.setSource(AssetSource(_targetShape.soundUrl));
-      _shapePlayer.resume();
-    }
   }
   
   Widget _buildShapeWidget(ShapeItem shape, {bool isTarget = false, bool isSelectable = false}) {
@@ -657,8 +689,11 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
                   ),
                   child: Column(
                     children: [
-                      const Text(
-                        'Find this shape:',
+                      Text(
+                        // Use instructions from template if available
+                        widget.gameContent != null && widget.gameContent!['instructions'] != null
+                            ? widget.gameContent!['instructions']
+                            : 'Find this shape:',
                         style: TextStyle(
                           fontSize: _fontSize,
                           fontWeight: FontWeight.bold,
@@ -668,39 +703,19 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
                       const SizedBox(height: 20),
                       
                       // Target shape
-                      GestureDetector(
-                        onTap: _playShapeSound,
-                        child: Column(
-                          children: [
-                            _buildShapeWidget(_targetShape, isTarget: true),
-                            const SizedBox(height: 10),
-                            Text(
-                              _targetShape.name,
-                              style: const TextStyle(
-                                fontSize: _fontSize - 2,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                      Column(
+                        children: [
+                          _buildShapeWidget(_targetShape, isTarget: true),
+                          const SizedBox(height: 10),
+                          Text(
+                            _targetShape.name,
+                            style: TextStyle(
+                              fontSize: _fontSize - 2,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
                             ),
-                          ],
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 10),
-                      
-                      // Sound button
-                      ElevatedButton.icon(
-                        onPressed: _playShapeSound,
-                        icon: const Icon(Icons.volume_up),
-                        label: const Text('Listen'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.amber,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
                           ),
-                        ),
+                        ],
                       ),
                       
                       // Feedback
@@ -708,7 +723,10 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
                         Padding(
                           padding: const EdgeInsets.only(top: 16.0),
                           child: Text(
-                            _isCorrect ? 'Great job! 🎉' : 'Try again! 💪',
+                            // Use Malay feedback for Bahasa Malaysia subject
+                            widget.subjectName.contains('Bahasa Malaysia') 
+                                ? (_isCorrect ? 'Bagus! 🎉' : 'Cuba lagi! 💪')
+                                : (_isCorrect ? 'Great job! 🎉' : 'Try again! 💪'),
                             style: TextStyle(
                               fontSize: _fontSize,
                               fontWeight: FontWeight.bold,
@@ -739,21 +757,36 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
                       ),
                       itemCount: 4, // Show 4 options
                       itemBuilder: (context, index) {
-                        // Create a list with the target and 3 random different shapes
-                        List<ShapeItem> options = [_targetShape];
-                        
-                        // Add random shapes until we have 4 options
-                        while (options.length < 4) {
-                          final randomShape = _shapes[Random().nextInt(_shapes.length)];
-                          if (!options.any((s) => s.name == randomShape.name)) {
-                            options.add(randomShape);
-                          }
+                        // Use a class-level variable instead of a static local variable
+                        // Only generate options once per round
+                        if (_currentOptions == null || _currentOptions!.length != 4 || !_currentOptions!.contains(_targetShape)) {
+                          // Start with an empty list
+                          _currentOptions = [];
+                          
+                          // Create a copy of all shapes to pick from
+                          List<ShapeItem> availableShapes = List.from(_shapes);
+                          
+                          // Remove the target shape from available shapes to avoid duplicates
+                          availableShapes.removeWhere((s) => s.name == _targetShape.name);
+                          
+                          // Shuffle available shapes
+                          availableShapes.shuffle();
+                          
+                          // Take 3 random shapes
+                          List<ShapeItem> randomShapes = availableShapes.take(3).toList();
+                          
+                          // Add the target shape and random shapes to options
+                          _currentOptions = [_targetShape, ...randomShapes];
+                          
+                          // Shuffle options
+                          _currentOptions!.shuffle();
                         }
                         
-                        // Shuffle options
-                        options.shuffle();
-                        
-                        return _buildShapeWidget(options[index], isSelectable: true);
+                        // Return the shape widget for the current index
+                        return GestureDetector(
+                          onTap: () => _checkAnswer(_currentOptions![index]),
+                          child: _buildShapeWidget(_currentOptions![index], isSelectable: true),
+                        );
                       },
                     ),
                   ),
@@ -804,8 +837,8 @@ class _ShapeColorGameState extends State<ShapeColorGame> with TickerProviderStat
               ),
             ),
             const SizedBox(height: 30),
-            const Text(
-              'You did amazing! Great job with ${widget.subjectName}!',
+            Text(
+              'You did amazing! Great job!',
               style: TextStyle(
                 fontSize: _fontSize - 4,
                 color: Colors.black87,
@@ -857,13 +890,11 @@ class ShapeItem {
   final String name;
   final Color color;
   final String shapeName;
-  final String soundUrl;
   
   ShapeItem({
     required this.name,
     required this.color,
     required this.shapeName,
-    required this.soundUrl,
   });
 }
 

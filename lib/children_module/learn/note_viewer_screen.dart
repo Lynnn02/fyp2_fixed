@@ -11,6 +11,34 @@ import '../../widgets/child_ui_style.dart';
 import 'fixed_text_element.dart' as fix;
 import '../../widgets/activity_completion_screen.dart';
 
+// Define ContainerElement since it's not in the original models
+class ContainerElement extends NoteContentElement {
+  final List<NoteContentElement> elements;
+  
+  ContainerElement({
+    required this.elements, 
+    String? id, 
+    String type = 'container', 
+    int position = 0
+  }) : super(
+    id: id ?? DateTime.now().millisecondsSinceEpoch.toString(), 
+    type: type, 
+    position: position,
+    createdAt: Timestamp.now()
+  );
+  
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'type': type,
+      'position': position,
+      'created_at': createdAt,
+      'elements': elements.map((e) => e.toJson()).toList(),
+    };
+  }
+}
+
 class NoteViewerScreen extends StatefulWidget {
   final Note note;
   final String chapterName;
@@ -50,35 +78,77 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   int _earnedPoints = 0;
   DateTime _startTime = DateTime.now();
   
-  // Audio player
-  final Map<String, AudioPlayer> _audioPlayers = {};
+  // Audio players for note content
+  final Map<String, AudioPlayer> _audioPlayers = <String, AudioPlayer>{};
+  
+  // Audio players for flashcards
+  final AudioPlayer _flashcardAudioPlayer = AudioPlayer();
+  final AudioPlayer _bgMusicPlayer = AudioPlayer();
   String? _currentlyPlayingAudioId;
+  bool _isBgMusicPlaying = false;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     _childAge = widget.ageGroup; // Use the provided age group
     _groupElementsIntoPages();
     
     // Listen for page changes to track progress
+    _pageController = PageController();
     _pageController.addListener(_onPageChanged);
+    
+    // Set up background music player
+    _setupBackgroundMusicPlayer();
   }
   
+  // Set up background music player with looping
+  void _setupBackgroundMusicPlayer() async {
+    try {
+      // Use a cheerful, child-friendly background music
+      const bgMusicUrl = 'https://example.com/childrens_background_music.mp3';
+      // You should replace this with an actual music URL or asset
+      // For now we'll just set it up without playing
+      await _bgMusicPlayer.setLoopMode(LoopMode.all);
+      await _bgMusicPlayer.setUrl(bgMusicUrl);
+    } catch (e) {
+      debugPrint('Error setting up background music: $e');
+    }
+  }
+
   void _onPageChanged() {
-    if (_pageController.page == null) return;
-    
-    final currentPage = _pageController.page!.round();
-    if (currentPage != _currentPage) {
+    final page = _pageController.page?.round() ?? 0;
+    if (_currentPage != page) {
       setState(() {
-        _currentPage = currentPage;
+        _currentPage = page;
       });
       
-      // Check if user has reached the last page
-      if (_currentPage == _pages.length - 1 && !_completedReading) {
-        setState(() {
-          _completedReading = true;
-        });
+      // Check if the new page has a flashcard with audio and play it
+      if (_pages.isNotEmpty && page < _pages.length) {
+        final elements = _pages[page];
+        if (elements.isNotEmpty) {
+          // Check if it's our custom container element
+          if (elements.first is ContainerElement) {
+            final containerElement = elements.first as ContainerElement;
+            AudioElement? audioElement;
+            
+            for (var child in containerElement.elements) {
+              if (child is AudioElement) {
+                audioElement = child;
+                break;
+              }
+            }
+            
+            if (audioElement != null && audioElement.audioUrl != null) {
+              _playAudio(audioElement.audioUrl!);
+            }
+          } else if (elements.first is AudioElement) {
+            // Direct audio element
+            final audioElement = elements.first as AudioElement;
+            if (audioElement.audioUrl != null) {
+              _playAudio(audioElement.audioUrl!);
+            }
+          }
+        }
         _submitScore();
       }
     }
@@ -88,11 +158,14 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   void dispose() {
     _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
+    
     // Dispose all audio players
-    for (final player in _audioPlayers.values) {
+    for (var player in _audioPlayers.values) {
       player.dispose();
     }
-    _audioPlayers.clear();
+    _flashcardAudioPlayer.dispose();
+    _bgMusicPlayer.dispose();
+    
     super.dispose();
   }
   
@@ -294,11 +367,15 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                           Navigator.popUntil(context, ModalRoute.withName('/'));
                         }),
                         _buildCircularButton(Icons.volume_up, Colors.amber, () {
-                          // Toggle sound
+                          // Toggle sound - this is for general UI sounds
+                          // We'll leave this empty for now as it's handled by the flashcard audio
                         }),
-                        _buildCircularButton(Icons.music_note, Colors.blue.shade800, () {
-                          // Toggle background music
-                        }),
+                        _buildCircularButton(
+                          _isBgMusicPlaying ? Icons.music_note : Icons.music_off,
+                          _isBgMusicPlaying ? Colors.blue.shade800 : Colors.grey.shade600,
+                          () {
+                            _toggleBackgroundMusic();
+                          }),
                       ],
                     ),
                   ),
@@ -394,6 +471,43 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
     final element = elements.isNotEmpty ? elements.first : null;
     if (element == null) return Container();
     
+    // Check if this is a flashcard (has both text and image)
+    bool isFlashcard = false;
+    String textContent = '';
+    String imageUrl = '';
+    String audioUrl = '';
+    
+    // For container elements with multiple child elements
+    if (element is ContainerElement) {
+      // Check if it has both text and image elements
+      TextElement? textElement;
+      ImageElement? imageElement;
+      AudioElement? audioElement;
+      
+      for (var child in element.elements) {
+        if (child is TextElement) textElement = child;
+        if (child is ImageElement) imageElement = child;
+        if (child is AudioElement) audioElement = child;
+      }
+      
+      if (textElement != null && imageElement != null) {
+        isFlashcard = true;
+        textContent = textElement.content;
+        imageUrl = imageElement.imageUrl ?? '';
+        audioUrl = audioElement?.audioUrl ?? '';
+        
+        // Use our specialized flashcard builder
+        // Schedule audio to play after the widget is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (audioUrl.isNotEmpty) {
+            _playAudio(audioUrl);
+          }
+        });
+        return _buildFlashcard(textContent, imageUrl, audioUrl);
+      }
+    }
+    
+    // For individual elements that aren't part of a flashcard
     // Extract title from content if it's a text element
     String title = '';
     String description = '';
@@ -464,6 +578,151 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+  
+  // Specialized flashcard builder with our new design
+  Widget _buildFlashcard(String text, String imageUrl, String audioUrl) {
+    // Get first letter of the word for the top display
+    String firstLetter = text.isNotEmpty ? text[0].toUpperCase() : '';
+    
+    // Generate background color based on the first letter
+    Color backgroundColor = _getColorForLetter(firstLetter);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      height: 400,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Main content
+          Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Large first letter at the top
+              Padding(
+                padding: const EdgeInsets.only(top: 20.0),
+                child: Text(
+                  firstLetter,
+                  style: TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        offset: const Offset(1.0, 1.0),
+                        blurRadius: 2.0,
+                        color: Colors.black.withOpacity(0.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Image in center with white container
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(16.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: imageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.contain,
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.image_not_supported,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.image_not_supported,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                  ),
+                ),
+              ),
+              
+              // Word at the bottom
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        offset: const Offset(1.0, 1.0),
+                        blurRadius: 2.0,
+                        color: Colors.black.withOpacity(0.5),
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+          
+          // Content audio button (top-right)
+          if (audioUrl.isNotEmpty)
+            Positioned(
+              top: 20.0,
+              right: 20.0,
+              child: Material(
+                color: Colors.transparent,
+                child: Ink(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.8),
+                    shape: BoxShape.circle,
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20.0),
+                    onTap: () => _playAudio(audioUrl),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(
+                        Icons.volume_up,
+                        size: 24.0,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -582,6 +841,73 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
         padding: EdgeInsets.zero,
       ),
     );
+  }
+  
+  // Play audio for flashcards
+  Future<void> _playAudio(String url) async {
+    if (url.isEmpty) return;
+    
+    try {
+      await _flashcardAudioPlayer.stop();
+      await _flashcardAudioPlayer.setUrl(url);
+      await _flashcardAudioPlayer.play();
+    } catch (e) {
+      debugPrint('Error playing audio: $e');
+    }
+  }
+  
+  // Toggle background music
+  Future<void> _toggleBackgroundMusic() async {
+    try {
+      if (_isBgMusicPlaying) {
+        await _bgMusicPlayer.pause();
+      } else {
+        await _bgMusicPlayer.play();
+      }
+      
+      setState(() {
+        _isBgMusicPlaying = !_isBgMusicPlaying;
+      });
+    } catch (e) {
+      debugPrint('Error toggling background music: $e');
+    }
+  }
+  
+  // Get a consistent color based on the first letter
+  Color _getColorForLetter(String letter) {
+    if (letter.isEmpty) return Colors.blue;
+    
+    // Map letters to colors
+    final Map<String, Color> colorMap = {
+      'A': Colors.red,
+      'B': Colors.blue,
+      'C': Colors.green,
+      'D': Colors.orange,
+      'E': Colors.purple,
+      'F': Colors.teal,
+      'G': Colors.pink,
+      'H': Colors.indigo,
+      'I': Colors.amber,
+      'J': Colors.cyan,
+      'K': Colors.deepOrange,
+      'L': Colors.lightBlue,
+      'M': Colors.lightGreen,
+      'N': Colors.deepPurple,
+      'O': Colors.brown,
+      'P': Colors.blueGrey,
+      'Q': Colors.lime,
+      'R': Colors.red.shade800,
+      'S': Colors.blue.shade800,
+      'T': Colors.green.shade800,
+      'U': Colors.orange.shade800,
+      'V': Colors.purple.shade800,
+      'W': Colors.teal.shade800,
+      'X': Colors.pink.shade800,
+      'Y': Colors.indigo.shade800,
+      'Z': Colors.amber.shade800,
+    };
+    
+    return colorMap[letter] ?? Colors.blue;
   }
   
   // Helper method to parse color strings safely
