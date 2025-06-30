@@ -101,6 +101,8 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
     print('NoteViewerScreen - initState called');
     print('Note ID: ${widget.note.id}');
     print('Note title: ${widget.note.title}');
+    print('Subject name: ${widget.subjectName}'); // Use the subjectName from widget parameters instead
+    print('Chapter name: ${widget.chapterName}'); // Use the chapterName from widget parameters
     print('Note elements count: ${widget.note.elements.length}');
     if (widget.note.elements.isNotEmpty) {
       print('First element type: ${widget.note.elements.first.type}');
@@ -224,17 +226,21 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
       final duration = now.difference(_startTime);
       final studyMinutes = (duration.inSeconds / 60).ceil(); // Round up to nearest minute
       
+      // Ensure consistent subject naming and store chapter info properly
       await _scoreService.addScore(
         userId: widget.userId,
         userName: widget.userName,
         subjectId: widget.subjectId,
         subjectName: widget.subjectName,
-        activityId: widget.chapterId,
+        activityId: widget.chapterId, // This stores the chapter ID
         activityType: 'note',
-        activityName: 'Note: ${widget.note.title}',
+        activityName: widget.subjectName, // Use subject name for consistent analytics filtering
         points: totalPoints,
         ageGroup: widget.ageGroup,
+        chapterName: widget.chapterName, // Pass chapter name separately
       );
+      
+      print('Score saved with subject: ${widget.subjectName}, chapter ID: ${widget.chapterId}, chapter name: ${widget.chapterName}');
       
       setState(() {
         _scoreSubmitted = true;
@@ -472,10 +478,10 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                           },
                         ),
                         const SizedBox(width: 8),
-                        // Chapter name in dark blue header
+                        // Subject name in dark blue header
                         Expanded(
                           child: Text(
-                            actualChapterName, // Display chapter name from Firebase
+                            actualSubjectName, // Display only subject name in header
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -508,7 +514,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                       ),
                     ),
                     child: Text(
-                      actualNote.title, // Display the note title from Firebase
+                      widget.chapterName, // Display only the chapter name, not the full note title
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 22,

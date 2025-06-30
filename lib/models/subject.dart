@@ -19,9 +19,13 @@ class Subject {
   factory Subject.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     var chaptersData = data['chapters'] as List<dynamic>? ?? [];
+    
+    // Extract the subject field if available, otherwise use name
+    String subjectName = data['subject'] as String? ?? data['name'] as String;
+    
     return Subject(
       id: doc.id,
-      name: data['name'] as String,
+      name: subjectName, // Use the extracted subject name
       chapters: chaptersData.map((e) => Chapter.fromJson(e as Map<String, dynamic>)).toList(),
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
       moduleId: data['moduleId'] as int? ?? 4, // Default to module 4 if not specified

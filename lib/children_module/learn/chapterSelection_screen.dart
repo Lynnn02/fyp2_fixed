@@ -168,12 +168,63 @@ class _ChapterSelectionScreenState extends State<ChapterSelectionScreen> {
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                   children: [
-                                    _buildFeatureButton(
-                                      icon: Icons.note,
-                                      label: 'Notes',
-                                      color: Colors.green.shade600,
-                                      onPressed: () {
-                                        _loadAndViewNote(context, chapter, actualSubject.id, actualUserId, actualUserName);
+                                    // Check if the chapter has a note before showing the Notes button
+                                    FutureBuilder<Note?>(
+                                      future: _contentService.getNoteForChapter(actualSubject.id, chapter.id),
+                                      builder: (context, snapshot) {
+                                        // Show placeholder while loading
+                                        if (snapshot.connectionState == ConnectionState.waiting) {
+                                          return const SizedBox(
+                                            width: 50,
+                                            height: 50,
+                                            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                                          );
+                                        }
+                                        
+                                        // If note exists, show the Notes button
+                                        if (snapshot.hasData && snapshot.data != null) {
+                                          return _buildFeatureButton(
+                                            icon: Icons.book,
+                                            label: 'Notes',
+                                            color: Colors.green,
+                                            onPressed: () {
+                                              _loadAndViewNote(
+                                                context,
+                                                chapter,
+                                                actualSubject.id,
+                                                actualUserId,
+                                                actualUserName,
+                                              );
+                                            },
+                                          );
+                                        }
+                                        
+                                        // If no note exists, show a disabled message
+                                        return Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              width: 50,
+                                              height: 50,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey.withOpacity(0.2),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: Colors.grey, width: 2),
+                                              ),
+                                              child: const Icon(Icons.book, color: Colors.grey),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            const Text(
+                                              'Coming Soon',
+                                              style: TextStyle(
+                                                color: Colors.grey,
+                                                fontWeight: FontWeight.bold,
+                                                fontFamily: 'ITEM',
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        );
                                       },
                                     ),
                                     if ((chapter.videoUrl != null && chapter.videoUrl!.isNotEmpty) ||
@@ -247,7 +298,7 @@ class _ChapterSelectionScreenState extends State<ChapterSelectionScreen> {
               userId: userId,
               userName: userName,
               subjectId: subjectId,
-              subjectName: chapter.name,
+              subjectName: widget.subject.name, // Use the actual subject name instead of chapter name
               chapterId: chapter.id,
               ageGroup: widget.subject.moduleId,
             ),

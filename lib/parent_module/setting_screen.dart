@@ -14,6 +14,17 @@ class SettingScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 28),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ParentModeScreen(userId: userId),
+              ),
+            );
+          },
+        ),
       ),
       extendBodyBehindAppBar: true,
       body: Stack(

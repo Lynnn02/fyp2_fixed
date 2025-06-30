@@ -1,47 +1,55 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:fyp2/utils/app_colors.dart';
 import 'package:intl/intl.dart';
-
-import '../utils/app_colors.dart';
 
 class ChildProgressScreen extends StatefulWidget {
   final String childId;
 
-  const ChildProgressScreen({Key? key, required this.childId}) : super(key: key);
+  const ChildProgressScreen({
+    Key? key,
+    required this.childId,
+  }) : super(key: key);
 
   @override
   State<ChildProgressScreen> createState() => _ChildProgressScreenState();
 }
 
 class _ChildProgressScreenState extends State<ChildProgressScreen> {
-  String _selectedFilter = 'Today';
-  final List<String> _filterOptions = ['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days'];
-  
-  // Activity type filter
-  String _selectedActivityType = 'All';
-  final List<String> _activityTypeOptions = ['All', 'Game', 'Note', 'Video', 'Other'];
-  
   bool _isLoading = true;
+  String _selectedFilter = 'Today';
+  bool _showBySubject = true; // Toggle between subject and activity type view
+
+  // Data structures
   List<Map<String, dynamic>> _progressData = [];
   Map<String, double> _subjectScores = {};
-  Map<String, int> _studyMinutes = {};
-  Map<String, int> _activityTypeCounts = {}; // Track activity types
-  
-  // Subject data by activity type
+  Map<String, double> _studyMinutes = {};
+  Map<String, int> _activityTypeCounts = {};
   Map<String, Map<String, int>> _subjectActivityData = {};
-  
-  int _totalPoints = 0;
-  int _totalStudyMinutes = 0;
+  Map<String, Map<String, int>> _activityTypeSubjectData = {};
+
+  // Summary statistics
+  double _totalPoints = 0;
+  double _totalStudyMinutes = 0;
   int _daysActive = 0;
-  
+
+  // Color mapping for consistent colors
+  final Map<String, Color> _subjectColors = {};
+  final Map<String, Color> _activityTypeColors = {
+    'game': Colors.green,
+    'note': Colors.blue,
+    'video': Colors.orange,
+    'other': Colors.purple,
+  };
+
   @override
   void initState() {
     super.initState();
     _loadProgressData();
   }
-  
+
   Future<void> _loadProgressData() async {
     setState(() => _isLoading = true);
     
@@ -49,6 +57,8 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
       // Get the current user's ID or use the provided childId
       final currentUser = FirebaseAuth.instance.currentUser;
       final String userId = currentUser?.uid ?? widget.childId;
+      
+      print('Loading progress data for user ID: $userId');
       
       // Determine the date range based on the selected filter
       DateTime startDate;
@@ -58,9 +68,6 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
       switch (_selectedFilter) {
         case 'Today':
           startDate = today;
-          break;
-        case 'Yesterday':
-          startDate = today.subtract(const Duration(days: 1));
           break;
         case 'Last 7 Days':
           startDate = today.subtract(const Duration(days: 7));
@@ -108,13 +115,6 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
                  date.month == today.month && 
                  date.day == today.day;
         }
-        // For 'Yesterday', we need to check if it's yesterday
-        else if (_selectedFilter == 'Yesterday') {
-          final yesterday = today.subtract(const Duration(days: 1));
-          return date.year == yesterday.year && 
-                 date.month == yesterday.month && 
-                 date.day == yesterday.day;
-        }
         // For other filters, check if it's after the start date
         else {
           return date.isAfter(startDate) || 
@@ -132,13 +132,17 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
       for (var doc in filteredScoreDocs) {
         final data = doc.data();
         
-        // Create a standardized progress entry
+        // Create a standardized progress entry with clear separation between subject and chapter
+        String subjectName = data['subjectName'] ?? data['subject'] ?? 'Unknown';
+        String chapterName = data['chapterName'] ?? data['activityName'] ?? 'Unknown Activity';
+        
         Map<String, dynamic> entry = {
           'userId': userId,
-          'subject': data['subject'] ?? data['subjectName'] ?? 'Unknown',
+          'subject': subjectName, // Always use the subject name for subject field
           'points': data['points'] ?? 0,
           'timestamp': data['timestamp'],
-          'activityName': data['activityName'] ?? data['chapterName'] ?? 'Unknown Activity',
+          'activityName': subjectName, // Use subject name for activity name to ensure consistent filtering
+          'chapterName': chapterName, // Store chapter name separately
         };
         
         // Improved activity type detection and normalization
@@ -208,7 +212,7 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
           
       print('Found ${progressSnapshot.docs.length} progress entries');
       
-      // Filter the results in memory instead of using a compound query
+      // Filter the progress data by date
       final filteredProgressDocs = progressSnapshot.docs.where((doc) {
         final data = doc.data();
         final timestamp = data['timestamp'];
@@ -234,13 +238,6 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
                  date.month == today.month && 
                  date.day == today.day;
         }
-        // For 'Yesterday', we need to check if it's yesterday
-        else if (_selectedFilter == 'Yesterday') {
-          final yesterday = today.subtract(const Duration(days: 1));
-          return date.year == yesterday.year && 
-                 date.month == yesterday.month && 
-                 date.day == yesterday.day;
-        }
         // For other filters, check if it's after the start date
         else {
           return date.isAfter(startDate) || 
@@ -256,251 +253,26 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
       for (var doc in filteredProgressDocs) {
         final data = doc.data();
         
-        // Create a standardized progress entry with proper activity type detection
-        Map<String, dynamic> entry = Map<String, dynamic>.from(data);
+        // Create a standardized progress entry
+        String subjectName = data['subjectName'] ?? data['subject'] ?? 'Unknown';
+        String activityName = data['activityName'] ?? 'Unknown Activity';
         
-        // Ensure we have the required fields
-        if (!entry.containsKey('userId')) entry['userId'] = userId;
-        if (!entry.containsKey('subject')) entry['subject'] = data['subject'] ?? data['subjectName'] ?? 'Unknown';
-        if (!entry.containsKey('points')) entry['points'] = data['points'] ?? 0;
-        if (!entry.containsKey('activityName')) {
-          entry['activityName'] = data['activityName'] ?? data['chapterName'] ?? 'Unknown Activity';
-        }
+        Map<String, dynamic> entry = {
+          'userId': userId,
+          'subject': subjectName,
+          'points': data['points'] ?? 0,
+          'timestamp': data['timestamp'],
+          'activityName': activityName,
+        };
         
-        // Improved activity type detection and normalization
-        String activityType = 'unknown';
-        
-        // First check if activityType is explicitly set
+        // Determine activity type
+        String activityType = 'other';
         if (data.containsKey('activityType')) {
           var typeValue = data['activityType'];
           if (typeValue is String) {
-            activityType = typeValue.toLowerCase();
-          }
-        }
-        
-        // If still unknown, try to infer from other fields
-        if (activityType == 'unknown') {
-          // Check for game indicators
-          if (data.containsKey('gameId') || data.containsKey('gameType') ||
-              (data.containsKey('activityName') && data['activityName'].toString().toLowerCase().contains('game'))) {
-            activityType = 'game';
-          }
-          // Check for note indicators
-          else if (data.containsKey('noteId') || 
-                  (data.containsKey('activityName') && 
-                   data['activityName'].toString().toLowerCase().contains('note'))) {
-            activityType = 'note';
-          }
-          // Check for video indicators
-          else if (data.containsKey('videoId') || 
-                  (data.containsKey('activityName') && 
-                   data['activityName'].toString().toLowerCase().contains('video'))) {
-            activityType = 'video';
-          }
-        }
-        
-        // Normalize the activity type to standard categories
-        if (!['game', 'note', 'video', 'other'].contains(activityType)) {
-          if (activityType.contains('game') || activityType.contains('quiz') || 
-              activityType.contains('match') || activityType.contains('puzzle')) {
-            activityType = 'game';
-          } else if (activityType.contains('note') || activityType.contains('read') || 
-                    activityType.contains('book')) {
-            activityType = 'note';
-          } else if (activityType.contains('video') || activityType.contains('watch')) {
-            activityType = 'video';
-          } else {
-            activityType = 'other';
-          }
-        }
-        
-        entry['activityType'] = activityType;
-        
-        // Add study minutes if not available
-        if (!entry.containsKey('studyMinutes')) {
-          entry['studyMinutes'] = 5; // Default study minutes
-        }
-        
-        progressData.add(entry);
-      }
-      
-      print('Total combined entries before activity filtering: ${progressData.length}');
-      
-      // Set the processed data before activity type filtering
-      _progressData = progressData;
-      
-      // Add sample data for testing if no notes or videos exist
-      // This ensures we have data for all activity types for testing
-      bool hasNotes = false;
-      bool hasVideos = false;
-      
-      // Check if we have notes and videos in the data
-      for (var entry in _progressData) {
-        String activityType = entry['activityType']?.toString().toLowerCase() ?? '';
-        if (activityType == 'note') hasNotes = true;
-        if (activityType == 'video') hasVideos = true;
-      }
-      
-      // If we don't have notes or videos, add sample data
-      if (!hasNotes || !hasVideos) {
-        // Get a sample subject from existing data
-        String sampleSubject = 'Math';
-        if (_progressData.isNotEmpty && _progressData[0].containsKey('subject')) {
-          sampleSubject = _progressData[0]['subject'] as String? ?? 'Math';
-        }
-        
-        // Add sample note if needed
-        if (!hasNotes) {
-          _progressData.add({
-            'userId': widget.childId,
-            'subject': sampleSubject,
-            'activityType': 'note',
-            'activityName': 'Reading Notes',
-            'points': 50,
-            'studyMinutes': 15,
-            'timestamp': Timestamp.now(),
-          });
-        }
-        
-        // Add sample video if needed
-        if (!hasVideos) {
-          _progressData.add({
-            'userId': widget.childId,
-            'subject': sampleSubject,
-            'activityType': 'video',
-            'activityName': 'Learning Video',
-            'points': 75,
-            'studyMinutes': 20,
-            'timestamp': Timestamp.now(),
-          });
-        }
-      }
-      
-      // Calculate statistics
-      _calculateStatistics();
-      
-    } catch (e) {
-      print('Error loading progress data: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-  
-  void _calculateStatistics() {
-    // First filter by activity type if needed
-    List<Map<String, dynamic>> filteredData = _progressData;
-    if (_selectedActivityType != 'All') {
-      String normalizedSelectedType = _selectedActivityType.toLowerCase();
-      filteredData = _progressData.where((data) {
-        // Extract and normalize activity type
-        String activityType;
-        if (data.containsKey('activityType')) {
-          var typeValue = data['activityType'];
-          if (typeValue is String) {
-            // Normalize to lowercase first
             activityType = typeValue.toLowerCase();
             
-            // Ensure it's one of our standard types
-            if (!['game', 'note', 'video', 'other'].contains(activityType)) {
-              // Map any non-standard types to appropriate categories
-              if (activityType.contains('game') || activityType.contains('quiz') || 
-                  activityType.contains('match') || activityType.contains('puzzle')) {
-                activityType = 'game';
-              } else if (activityType.contains('note') || activityType.contains('read') || 
-                        activityType.contains('book')) {
-                activityType = 'note';
-              } else if (activityType.contains('video') || activityType.contains('watch')) {
-                activityType = 'video';
-              } else {
-                activityType = 'other';
-              }
-            }
-          } else {
-            activityType = 'other'; // Default if type value is not a string
-          }
-        } else {
-          // Try to infer activity type from other fields
-          if (data.containsKey('gameId') || data.containsKey('gameType')) {
-            activityType = 'game';
-          } else if (data.containsKey('noteId') || 
-                    (data.containsKey('activityName') && 
-                     data['activityName'].toString().toLowerCase().contains('note'))) {
-            activityType = 'note';
-          } else if (data.containsKey('videoId') || 
-                    (data.containsKey('activityName') && 
-                     data['activityName'].toString().toLowerCase().contains('video'))) {
-            activityType = 'video';
-          } else {
-            activityType = 'other'; // Default if we can't determine the type
-          }
-        }
-        
-        return activityType == normalizedSelectedType;
-      }).toList();
-    }
-    
-    print('Filtered to ${filteredData.length} entries after activity type filtering');
-    
-    // Reset statistics
-    _subjectScores = {};
-    _studyMinutes = {};
-    _activityTypeCounts = {};
-    _subjectActivityData = {};
-    _totalPoints = 0;
-    _totalStudyMinutes = 0;
-    _daysActive = 0;
-    
-    // Set of unique days to count active days
-    final Set<String> activeDays = {};
-    
-    for (final data in filteredData) {
-      // Extract data
-      final subject = data['subject'] as String? ?? 'Unknown';
-      final points = data['points'] as int? ?? 0;
-      
-      // Handle study minutes with a default value if not present
-      int minutes;
-      if (data.containsKey('studyMinutes')) {
-        var minutesValue = data['studyMinutes'];
-        if (minutesValue is int) {
-          minutes = minutesValue;
-        } else if (minutesValue is String) {
-          try {
-            minutes = int.parse(minutesValue);
-          } catch (_) {
-            minutes = 5; // Default value
-          }
-        } else {
-          minutes = 5; // Default value
-        }
-      } else {
-        minutes = 5; // Default value based on your Firebase data
-      }
-      
-      // Handle timestamp
-      DateTime? dateTime;
-      final timestamp = data['timestamp'];
-      if (timestamp is Timestamp) {
-        dateTime = timestamp.toDate();
-      } else if (timestamp is String) {
-        try {
-          dateTime = DateTime.parse(timestamp);
-        } catch (_) {
-          // Invalid timestamp format
-        }
-      }
-      
-      // Handle activity type with normalization
-      String activityType;
-      if (data.containsKey('activityType')) {
-        var typeValue = data['activityType'];
-        if (typeValue is String) {
-          // Normalize to lowercase first
-          activityType = typeValue.toLowerCase();
-          
-          // Ensure it's one of our standard types
-          if (!['game', 'note', 'video', 'other'].contains(activityType)) {
-            // Map any non-standard types to appropriate categories
+            // Normalize activity type
             if (activityType.contains('game') || activityType.contains('quiz') || 
                 activityType.contains('match') || activityType.contains('puzzle')) {
               activityType = 'game';
@@ -513,71 +285,167 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
               activityType = 'other';
             }
           }
+        }
+        
+        entry['activityType'] = activityType;
+        
+        // Add study minutes if available
+        if (data.containsKey('studyMinutes')) {
+          entry['studyMinutes'] = data['studyMinutes'] as int? ?? 0;
+        } else if (data.containsKey('duration')) {
+          entry['studyMinutes'] = data['duration'] as int? ?? 0;
         } else {
-          activityType = 'other'; // Default if type value is not a string
+          entry['studyMinutes'] = 5; // Default study minutes
+        }
+        
+        progressData.add(entry);
+      }
+      
+      print('Total combined entries before activity filtering: ${progressData.length}');
+      
+      // Use only real data from Firestore
+      print('Using ${progressData.length} real data entries for statistics');
+
+      
+      // Calculate statistics
+      _calculateStatistics(progressData);
+      
+    } catch (e) {
+      print('Error loading progress data: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+  
+  void _calculateStatistics(List<Map<String, dynamic>> filteredData) {
+    // Reset all data structures
+    _subjectScores = {};
+    _studyMinutes = {};
+    _activityTypeCounts = {};
+    _subjectActivityData = {};
+    _activityTypeSubjectData = {};
+    _totalPoints = 0;
+    _totalStudyMinutes = 0;
+    
+    // Track unique active days
+    final Set<String> activeDays = {};
+    
+    // Process each data entry
+    for (final data in filteredData) {
+      final subject = data['subjectName'] ?? data['subject'] ?? 'Unknown';
+      final points = data['points'] ?? 0;
+      final minutes = data['studyMinutes'] ?? data['duration'] ?? 0;
+      
+      // Extract and normalize activity type
+      String activityType = 'other';
+      if (data.containsKey('activityType')) {
+        var typeValue = data['activityType'];
+        if (typeValue is String) {
+          String normalizedType = typeValue.toLowerCase();
+          if (normalizedType.contains('game') || normalizedType.contains('match') || normalizedType.contains('puzzle')) {
+            activityType = 'game';
+          } else if (normalizedType.contains('note') || normalizedType.contains('read') || normalizedType.contains('book')) {
+            activityType = 'note';
+          } else if (normalizedType.contains('video') || normalizedType.contains('watch')) {
+            activityType = 'video';
+          }
         }
       } else {
-        // Try to infer activity type from other fields
         if (data.containsKey('gameId') || data.containsKey('gameType')) {
           activityType = 'game';
-        } else if (data.containsKey('noteId') || 
-                  (data.containsKey('activityName') && 
-                   data['activityName'].toString().toLowerCase().contains('note'))) {
+        } else if (data.containsKey('noteId') || (data.containsKey('activityName') && data['activityName'].toString().toLowerCase().contains('note'))) {
           activityType = 'note';
-        } else if (data.containsKey('videoId') || 
-                  (data.containsKey('activityName') && 
-                   data['activityName'].toString().toLowerCase().contains('video'))) {
+        } else if (data.containsKey('videoId') || (data.containsKey('activityName') && data['activityName'].toString().toLowerCase().contains('video'))) {
           activityType = 'video';
-        } else {
-          activityType = 'other'; // Default if we can't determine the type
         }
       }
       
       // Update subject scores
-      _subjectScores[subject] = (_subjectScores[subject] ?? 0) + points;
+      _subjectScores[subject] = (_subjectScores[subject] ?? 0) + points.toDouble();
       
       // Update study minutes
-      _studyMinutes[subject] = (_studyMinutes[subject] ?? 0) + minutes;
+      _studyMinutes[subject] = (_studyMinutes[subject] ?? 0) + minutes.toDouble();
       
       // Update activity type counts
-      _activityTypeCounts[activityType] = 
-          (_activityTypeCounts[activityType] ?? 0) + 1;
+      _activityTypeCounts[activityType] = (_activityTypeCounts[activityType] ?? 0) + 1;
       
       // Update subject activity data
       if (!_subjectActivityData.containsKey(subject)) {
         _subjectActivityData[subject] = {};
       }
+      _subjectActivityData[subject]![activityType] = (_subjectActivityData[subject]![activityType] ?? 0) + 1;
       
-      _subjectActivityData[subject]![activityType] = 
-          (_subjectActivityData[subject]![activityType] ?? 0) + 1;
+      // Update activity type by subject data
+      if (!_activityTypeSubjectData.containsKey(activityType)) {
+        _activityTypeSubjectData[activityType] = {};
+      }
+      _activityTypeSubjectData[activityType]![subject] = (_activityTypeSubjectData[activityType]![subject] ?? 0) + 1;
+      
+      // Track active days
+      if (data.containsKey('timestamp')) {
+        final timestamp = data['timestamp'];
+        DateTime? dateTime;
+        if (timestamp is Timestamp) {
+          dateTime = timestamp.toDate();
+        } else if (timestamp is DateTime) {
+          dateTime = timestamp;
+        }
+        if (dateTime != null) {
+          final dayKey = '${dateTime.year}-${dateTime.month}-${dateTime.day}';
+          activeDays.add(dayKey);
+        }
+      }
       
       // Update totals
-      _totalPoints += points;
-      _totalStudyMinutes += minutes;
-      
-      // Update active days
-      if (dateTime != null) {
-        final date = DateFormat('yyyy-MM-dd').format(dateTime);
-        activeDays.add(date);
-      }
+      _totalPoints += points.toDouble();
+      _totalStudyMinutes += minutes.toDouble();
     }
     
-    // Set days active
+    // Set active days count
     _daysActive = activeDays.length;
     
-    // Ensure we have all activity types represented for charts
-    ['game', 'note', 'video', 'other'].forEach((type) {
-      if (!_activityTypeCounts.containsKey(type)) {
-        _activityTypeCounts[type] = 0;
-      }
-    });
+    // Ensure all activity types have zero counts if no data
+    for (final type in ['game', 'note', 'video', 'other']) {
+      _activityTypeCounts[type] ??= 0;
+    }
+    
     // Ensure all subjects have entries for all activity types
     for (final subject in _subjectActivityData.keys) {
-      if (!_subjectActivityData[subject]!.containsKey('game')) _subjectActivityData[subject]!['game'] = 0;
-      if (!_subjectActivityData[subject]!.containsKey('note')) _subjectActivityData[subject]!['note'] = 0;
-      if (!_subjectActivityData[subject]!.containsKey('video')) _subjectActivityData[subject]!['video'] = 0;
-      if (!_subjectActivityData[subject]!.containsKey('other')) _subjectActivityData[subject]!['other'] = 0;
+      for (final type in ['game', 'note', 'video', 'other']) {
+        _subjectActivityData[subject]![type] ??= 0;
+      }
     }
+    
+    // Ensure all activity types have entries for all subjects
+    for (final type in _activityTypeSubjectData.keys) {
+      for (final subject in _subjectScores.keys) {
+        _activityTypeSubjectData[type]![subject] ??= 0;
+      }
+    }
+    
+    // Assign colors to subjects if not already assigned
+    final List<Color> subjectColorPalette = [
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.pink,
+      Colors.amber,
+      Colors.indigo,
+      Colors.cyan,
+    ];
+    
+    int colorIndex = 0;
+    for (final subject in _subjectScores.keys) {
+      if (!_subjectColors.containsKey(subject)) {
+        _subjectColors[subject] = subjectColorPalette[colorIndex % subjectColorPalette.length];
+        colorIndex++;
+      }
+    }
+    
+    setState(() {});
   }
   
   @override
@@ -585,558 +453,351 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Child Progress'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        actions: [
-          // Add refresh button
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh progress data',
-            onPressed: () {
-              // Show a snackbar to indicate refresh is happening
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Refreshing progress data...')),
-              );
-              // Reload the progress data
-              _loadProgressData();
-            },
-          ),
-        ],
+        backgroundColor: AppColors.primaryColor,
       ),
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
             image: AssetImage('assets/rainbow.png'),
             fit: BoxFit.cover,
-            opacity: 0.3,
+            opacity: 0.15, // Semi-transparent background
           ),
         ),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _buildProgressContent(),
-      ),
-    );
-  }
-  
-  Widget _buildProgressContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Filter options
-          _buildFilterOptions(),
-          
-          const SizedBox(height: 24),
-          
-          // Summary cards
-          _buildSummaryCards(),
-          
-          const SizedBox(height: 24),
-          
-          // Activity type distribution chart
-          _buildSectionHeader('Activity Type Distribution'),
-          const SizedBox(height: 16),
-          _buildActivityTypeDistributionChart(),
-          
-          const SizedBox(height: 24),
-          
-          // Combined activity-subject chart with filter
-          _buildSectionHeader('Learning Activities by Subject'),
-          const SizedBox(height: 8),
-          _buildActivityTypeFilter(),
-          const SizedBox(height: 16),
-          _buildCombinedActivitySubjectChart(),
-          
-          const SizedBox(height: 24),
-          
-          // Subject performance chart
-          _buildSectionHeader('Subject Performance'),
-          const SizedBox(height: 16),
-          _buildSubjectPerformanceChart(),
-          
-          const SizedBox(height: 24),
-          
-          // Study time chart
-          _buildSectionHeader('Study Time Distribution'),
-          const SizedBox(height: 16),
-          _buildStudyTimeChart(),
-          
-          const SizedBox(height: 24),
-          
-          // Daily activity
-          _buildSectionHeader('Daily Activity'),
-          const SizedBox(height: 16),
-          _buildDailyActivityChart(),
-          
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildActivityTypeDistributionChart() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Activity Types',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: PieChart(
-                PieChartData(
-                  sections: _getActivityTypeSections(),
-                  centerSpaceRadius: 40,
-                  sectionsSpace: 2,
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTimeFilters(),
+                    const SizedBox(height: 20),
+                    _buildSummaryCards(),
+                    const SizedBox(height: 30),
+                    _buildChartToggle(),
+                    const SizedBox(height: 20),
+                    _buildStackedBarChart(),
+                    const SizedBox(height: 20), // Add some bottom padding
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildActivityTypeLegend(),
-            const SizedBox(height: 8),
-            _buildActivityTypeDetails(),
-          ],
-        ),
       ),
     );
   }
   
-  List<PieChartSectionData> _getActivityTypeSections() {
-    final Map<String, Color> typeColors = AppColors.getActivityTypeColorMap();
-    
-    final int total = _activityTypeCounts.values.fold(0, (sum, count) => sum + count);
-    if (total == 0) return [];
-    
-    return _activityTypeCounts.entries
-      .where((entry) => entry.value > 0) // Only show types with values > 0
-      .map((entry) {
-        final type = entry.key;
-        final count = entry.value;
-        final percentage = count / total;
-        
-        return PieChartSectionData(
-          color: typeColors[type] ?? Colors.grey,
-          value: count.toDouble(),
-          title: '${(percentage * 100).toStringAsFixed(1)}%',
-          radius: 60,
-          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        );
-      }).toList();
-  }
-  
-  Widget _buildActivityTypeLegend() {
-    final Map<String, Color> typeColors = AppColors.getActivityTypeColorMap();
-    
-    return Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      children: typeColors.entries
-        .where((entry) => _activityTypeCounts[entry.key] != null && _activityTypeCounts[entry.key]! > 0)
-        .map((entry) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                color: entry.value,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '${entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1)} (${_activityTypeCounts[entry.key] ?? 0})',
-                style: const TextStyle(fontWeight: FontWeight.w500),
+  Widget _buildTimeFilters() {
+    return Container(
+      width: double.infinity,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                spreadRadius: 1,
               ),
             ],
-          );
-        }).toList(),
-    );
-  }
-  
-  Widget _buildActivityTypeDetails() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Activity Breakdown:',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Table(
-          columnWidths: const {
-            0: FlexColumnWidth(1.5),
-            1: FlexColumnWidth(1),
-            2: FlexColumnWidth(1),
-          },
-          children: [
-            TableRow(
-              children: [
-                const Text('Type', style: TextStyle(fontWeight: FontWeight.bold)),
-                const Text('Count', style: TextStyle(fontWeight: FontWeight.bold)),
-                const Text('% of Total', style: TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            ..._activityTypeCounts.entries.map((entry) {
-              final type = entry.key;
-              final count = entry.value;
-              final total = _activityTypeCounts.values.fold(0, (sum, count) => sum + count);
-              final percentage = total > 0 ? (count / total * 100).toStringAsFixed(1) + '%' : '0%';
-              
-              return TableRow(
-                children: [
-                  Text(type.substring(0, 1).toUpperCase() + type.substring(1)),
-                  Text('$count'),
-                  Text(percentage),
-                ],
-              );
-            }).toList(),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterOptions() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Time Period:',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _filterOptions.map((filter) {
-              final isSelected = filter == _selectedFilter;
-              
-              // Get icon based on filter type
-              IconData icon;
-              switch (filter) {
-                case 'Today':
-                  icon = Icons.today;
-                  break;
-                case 'Yesterday':
-                  icon = Icons.history;
-                  break;
-                case 'Last 7 Days':
-                  icon = Icons.date_range;
-                  break;
-                case 'Last 30 Days':
-                  icon = Icons.calendar_month;
-                  break;
-                default:
-                  icon = Icons.calendar_today;
-              }
-              
-              return InkWell(
-                onTap: () {
-                  if (_selectedFilter != filter) {
-                    setState(() {
-                      _selectedFilter = filter;
-                    });
-                    // Reload data when filter changes
-                    _loadProgressData();
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.blue.shade700 : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: isSelected ? [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ] : null,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12.0,
+            children: [
+              for (final filter in ['Today', 'Last 7 Days', 'Last 30 Days'])
+                FilterChip(
+                  label: Text(
+                    filter,
+                    style: TextStyle(
+                      fontWeight: _selectedFilter == filter ? FontWeight.bold : FontWeight.normal,
+                      color: _selectedFilter == filter ? AppColors.primaryColor : Colors.black87,
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        icon,
-                        size: 16,
-                        color: isSelected ? Colors.white : Colors.grey.shade700,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        filter,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                    ],
+                  selected: _selectedFilter == filter,
+                  onSelected: (selected) {
+                    if (selected) {
+                      setState(() {
+                        _selectedFilter = filter;
+                      });
+                      _loadProgressData();
+                    }
+                  },
+                  backgroundColor: Colors.grey[100],
+                  selectedColor: AppColors.primaryColor.withOpacity(0.2),
+                  checkmarkColor: AppColors.primaryColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: _selectedFilter == filter 
+                          ? AppColors.primaryColor 
+                          : Colors.transparent,
+                      width: 1.5,
+                    ),
                   ),
                 ),
-              );
-            }).toList(),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildActivityTypeFilter() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 8),
-            child: Text(
-              'Activity Type:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade700,
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: _activityTypeOptions.map((type) {
-                final isSelected = _selectedActivityType == type;
-                
-                // Get icon and color based on activity type
-                IconData icon;
-                Color color;
-                
-                switch (type.toLowerCase()) {
-                  case 'game':
-                    icon = Icons.videogame_asset;
-                    color = Colors.orange;
-                    break;
-                  case 'note':
-                    icon = Icons.book;
-                    color = Colors.blue;
-                    break;
-                  case 'video':
-                    icon = Icons.play_circle_fill;
-                    color = Colors.red;
-                    break;
-                  default: // All
-                    icon = Icons.apps;
-                    color = Colors.purple;
-                }
-                
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedActivityType = type;
-                    });
-                    _loadProgressData();
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? color : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected ? color : Colors.grey.shade300,
-                      ),
-                      boxShadow: [
-                        if (isSelected)
-                          BoxShadow(
-                            color: color.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          icon,
-                          size: 16,
-                          color: isSelected ? Colors.white : color,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          type,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.grey.shade700,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
   
   Widget _buildSummaryCards() {
+    // Define a fixed height for all cards to ensure uniformity
+    const double cardHeight = 110.0;
+    
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         Expanded(
           child: _buildSummaryCard(
-            title: 'Total Points',
-            value: _totalPoints.toString(),
-            icon: Icons.star,
-            color: Colors.amber,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildSummaryCard(
-            title: 'Study Time',
-            value: '${_totalStudyMinutes} min',
-            icon: Icons.timer,
-            color: Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildSummaryCard(
-            title: 'Days Active',
-            value: _daysActive.toString(),
-            icon: Icons.calendar_today,
-            color: Colors.green,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildSummaryCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildSectionHeader(String title) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 20,
-          decoration: BoxDecoration(
-            color: Colors.purple.shade700,
-            borderRadius: BorderRadius.circular(2),
+            'Total Points',
+            _totalPoints.toInt().toString(),
+            Icons.star,
+            Colors.amber,
+            cardHeight,
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: _buildSummaryCard(
+            'Study Time',
+            '${_totalStudyMinutes.toInt()} min',
+            Icons.timer,
+            Colors.blue,
+            cardHeight,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildSummaryCard(
+            'Active Days',
+            _daysActive.toString(),
+            Icons.calendar_today,
+            Colors.green,
+            cardHeight,
           ),
         ),
       ],
     );
   }
   
-  Widget _buildSubjectPerformanceChart() {
-    if (_subjectScores.isEmpty) {
-      return _buildEmptyDataMessage();
-    }
-    
+  Widget _buildSummaryCard(String title, String value, IconData icon, Color color, double height) {
     return Container(
-      height: 300,
-      padding: const EdgeInsets.all(16),
+      height: height,
+      child: Card(
+        elevation: 6,
+        shadowColor: color.withOpacity(0.4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                color.withOpacity(0.1),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 28),
+                const SizedBox(height: 6),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildChartToggle() {
+    return Container(
+      width: double.infinity,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'View by: ',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(width: 12),
+              ChoiceChip(
+                label: Text(
+                  'Subject',
+                  style: TextStyle(
+                    fontWeight: _showBySubject ? FontWeight.bold : FontWeight.normal,
+                    color: _showBySubject ? AppColors.primaryColor : Colors.black87,
+                  ),
+                ),
+                selected: _showBySubject,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _showBySubject = true;
+                    });
+                  }
+                },
+                backgroundColor: Colors.grey[100],
+                selectedColor: AppColors.primaryColor.withOpacity(0.2),
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: _showBySubject ? AppColors.primaryColor : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ChoiceChip(
+                label: Text(
+                  'Activity Type',
+                  style: TextStyle(
+                    fontWeight: !_showBySubject ? FontWeight.bold : FontWeight.normal,
+                    color: !_showBySubject ? AppColors.primaryColor : Colors.black87,
+                  ),
+                ),
+                selected: !_showBySubject,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _showBySubject = false;
+                    });
+                  }
+                },
+                backgroundColor: Colors.grey[100],
+                selectedColor: AppColors.primaryColor.withOpacity(0.2),
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: !_showBySubject ? AppColors.primaryColor : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildStackedBarChart() {
+    // Create a container with a border and background for the chart
+    return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            blurRadius: 8,
+            spreadRadius: 2,
+          ),
+        ],
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.2),
+          width: 1.0,
+        ),
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0, left: 8.0),
+            child: Text(
+              _showBySubject ? 'Subject Performance' : 'Activity Type Breakdown',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          // Chart content
+          _showBySubject ? _buildSubjectStackedBarChart() : _buildActivityTypeStackedBarChart(),
+          // Legend
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: _buildLegend(),
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildSubjectStackedBarChart() {
+    if (_subjectActivityData.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Text('No data available for the selected time period'),
+        ),
+      );
+    }
+    
+    final List<String> subjects = _subjectActivityData.keys.toList();
+    final List<String> activityTypes = ['game', 'note', 'video', 'other'];
+    
+    return SizedBox(
+      height: 400,
       child: BarChart(
         BarChartData(
           alignment: BarChartAlignment.spaceAround,
-          maxY: _subjectScores.values.fold(0.0, (max, value) => value > max ? value : max) * 1.2,
+          maxY: _subjectActivityData.values
+              .map((activityMap) => activityMap.values.fold<int>(0, (sum, count) => sum + count))
+              .fold<int>(0, (max, sum) => sum > max ? sum : max)
+              .toDouble() * 1.2,
           barTouchData: BarTouchData(
-            enabled: true,
             touchTooltipData: BarTouchTooltipData(
-              tooltipBgColor: Colors.purple.shade100,
+              tooltipBgColor: Colors.blueGrey.withOpacity(0.8),
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                final subject = _subjectScores.keys.elementAt(groupIndex);
+                final subject = subjects[groupIndex];
+                final activityType = activityTypes[rodIndex];
+                final count = _subjectActivityData[subject]![activityType] ?? 0;
                 return BarTooltipItem(
-                  '$subject\n${rod.toY.toInt()} points',
-                  const TextStyle(color: Colors.purple),
+                  '$activityType: $count',
+                  const TextStyle(color: Colors.white),
                 );
               },
             ),
@@ -1147,721 +808,236 @@ class _ChildProgressScreenState extends State<ChildProgressScreen> {
               sideTitles: SideTitles(
                 showTitles: true,
                 getTitlesWidget: (value, meta) {
-                  if (value >= _subjectScores.length || value < 0) return const Text('');
-                  final subject = _subjectScores.keys.elementAt(value.toInt());
+                  if (value < 0 || value >= subjects.length) return const Text('');
                   return Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                      subject.length > 10 ? '${subject.substring(0, 7)}...' : subject,
-                      style: const TextStyle(fontSize: 10),
+                      subjects[value.toInt()],
+                      style: const TextStyle(fontSize: 12),
                     ),
                   );
                 },
+                reservedSize: 40,
               ),
             ),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
                 getTitlesWidget: (value, meta) {
-                  if (value == 0) return const Text('');
                   return Text(
                     value.toInt().toString(),
-                    style: const TextStyle(fontSize: 10),
+                    style: const TextStyle(fontSize: 12),
                   );
                 },
+                reservedSize: 30,
               ),
             ),
             topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
+          gridData: FlGridData(show: false),
           borderData: FlBorderData(show: false),
-          barGroups: _subjectScores.entries.map((entry) {
-            final index = _subjectScores.keys.toList().indexOf(entry.key);
-            return BarChartGroupData(
-              x: index,
-              barRods: [
-                BarChartRodData(
-                  toY: entry.value,
-                  color: Colors.primaries[index % Colors.primaries.length],
-                  width: 20,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    topRight: Radius.circular(6),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildStudyTimeChart() {
-    if (_studyMinutes.isEmpty) {
-      return _buildEmptyDataMessage();
-    }
-    
-    final List<PieChartSectionData> sections = [];
-    int index = 0;
-    
-    for (final entry in _studyMinutes.entries) {
-      final color = Colors.primaries[index % Colors.primaries.length];
-      final percentage = _totalStudyMinutes > 0 
-          ? entry.value / _totalStudyMinutes * 100 
-          : 0;
-      
-      sections.add(
-        PieChartSectionData(
-          color: color,
-          value: entry.value.toDouble(),
-          title: '${percentage.toStringAsFixed(1)}%',
-          radius: 100,
-          titleStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      );
-      
-      index++;
-    }
-    
-    return Column(
-      children: [
-        Container(
-          height: 250,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: PieChart(
-            PieChartData(
-              sections: sections,
-              centerSpaceRadius: 40,
-              sectionsSpace: 2,
-              pieTouchData: PieTouchData(
-                touchCallback: (FlTouchEvent event, pieTouchResponse) {},
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildChartLegend(),
-      ],
-    );
-  }
-  
-  Widget _buildCombinedActivitySubjectChart() {
-    if (_subjectActivityData.isEmpty) {
-      return _buildEmptyDataMessage();
-    }
-    
-    // Define colors for each activity type
-    final Map<String, Color> activityColors = {
-      'game': Colors.orange,
-      'note': Colors.blue,
-      'video': Colors.red,
-      'other': Colors.grey,
-    };
-    
-    // Filter subjects based on selected activity type
-    List<String> subjects = _subjectActivityData.keys.toList();
-    
-    // Create bar groups for the chart
-    final List<BarChartGroupData> barGroups = [];
-    
-    for (int i = 0; i < subjects.length; i++) {
-      final subject = subjects[i];
-      final activityData = _subjectActivityData[subject]!;
-      
-      // Create rods for each activity type
-      final List<BarChartRodData> rods = [];
-      
-      // If 'All' is selected, show all activity types
-      if (_selectedActivityType == 'All') {
-        // Create a list of activity types in a specific order for consistent display
-        final orderedTypes = ['game', 'note', 'video', 'other'];
-        
-        // Add a rod for each activity type in order
-        for (final activityType in orderedTypes) {
-          final count = activityData[activityType] ?? 0;
-          if (count > 0) { // Only add non-zero activities
-            rods.add(
-              BarChartRodData(
-                toY: count.toDouble(),
-                color: activityColors[activityType] ?? Colors.grey,
-                width: 15,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(6),
-                  topRight: Radius.circular(6),
-                ),
-              ),
-            );
-          }
-        }
-      } else {
-        // Show only the selected activity type
-        final selectedType = _selectedActivityType.toLowerCase();
-        final count = activityData[selectedType] ?? 0;
-        
-        if (count > 0) {
-          rods.add(
-            BarChartRodData(
-              toY: count.toDouble(),
-              color: activityColors[selectedType] ?? Colors.grey,
-              width: 20,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(6),
-                topRight: Radius.circular(6),
-              ),
-            ),
-          );
-        }
-      }
-      
-      // Only add the group if it has rods
-      if (rods.isNotEmpty) {
-        barGroups.add(
-          BarChartGroupData(
-            x: i,
-            barRods: rods,
-            showingTooltipIndicators: [0],
-          ),
-        );
-      }
-    }
-    
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: _getMaxActivityCount() * 1.2,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    tooltipBgColor: Colors.purple.shade100,
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      if (groupIndex < subjects.length) {
-                        final subject = subjects[groupIndex];
-                        String activityType = '';
-                        
-                        if (_selectedActivityType == 'All') {
-                          // Determine which activity type this rod represents based on the rod index
-                          // We're using the same order as in the chart creation
-                          final orderedTypes = ['game', 'note', 'video', 'other'];
-                          int typeIndex = 0;
-                          int currentRodIndex = 0;
-                          
-                          // Find which activity type corresponds to this rod index
-                          for (final type in orderedTypes) {
-                            final count = _subjectActivityData[subject]![type] ?? 0;
-                            if (count > 0) {
-                              if (currentRodIndex == rodIndex) {
-                                activityType = type;
-                                break;
-                              }
-                              currentRodIndex++;
-                            }
-                          }
-                        } else {
-                          activityType = _selectedActivityType.toLowerCase();
-                        }
-                        
-                        // Get friendly name for activity type
-                        String typeName = '';
-                        switch (activityType) {
-                          case 'game':
-                            typeName = 'Games';
-                            break;
-                          case 'note':
-                            typeName = 'Notes';
-                            break;
-                          case 'video':
-                            typeName = 'Videos';
-                            break;
-                          default:
-                            typeName = 'Other';
-                        }
-                        
-                        return BarTooltipItem(
-                          '$subject\n$typeName: ${rod.toY.toInt()}',
-                          const TextStyle(color: Colors.purple),
-                        );
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        if (value.toInt() >= subjects.length || value < 0) {
-                          return const Text('');
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            subjects[value.toInt()],
-                            style: const TextStyle(fontSize: 10),
-                            textAlign: TextAlign.center,
-                          ),
-                        );
-                      },
-                      reservedSize: 30,
+          barGroups: List.generate(
+            subjects.length,
+            (subjectIndex) {
+              final subject = subjects[subjectIndex];
+              final activityMap = _subjectActivityData[subject]!;
+              
+              return BarChartGroupData(
+                x: subjectIndex,
+                barRods: [
+                  BarChartRodData(
+                    toY: (activityMap['game'] ?? 0).toDouble(),
+                    color: _activityTypeColors['game'],
+                    width: 20,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4),
                     ),
                   ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          value.toInt().toString(),
-                          style: const TextStyle(fontSize: 10),
-                        );
-                      },
-                      reservedSize: 30,
+                  BarChartRodData(
+                    toY: (activityMap['note'] ?? 0).toDouble(),
+                    color: _activityTypeColors['note'],
+                    width: 20,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4),
                     ),
                   ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 1,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Colors.grey.shade200,
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
-                borderData: FlBorderData(show: false),
-                barGroups: barGroups,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Legend
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: activityColors.entries.map((entry) {
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: entry.value,
-                      shape: BoxShape.circle,
+                  BarChartRodData(
+                    toY: (activityMap['video'] ?? 0).toDouble(),
+                    color: _activityTypeColors['video'],
+                    width: 20,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1),
-                    style: const TextStyle(fontSize: 12),
+                  BarChartRodData(
+                    toY: (activityMap['other'] ?? 0).toDouble(),
+                    color: _activityTypeColors['other'],
+                    width: 20,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4),
+                    ),
                   ),
                 ],
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  // Helper method to get the maximum activity count for any subject
-  double _getMaxActivityCount() {
-    double maxCount = 0;
-    
-    if (_selectedActivityType == 'All') {
-      // Find the maximum sum of all activity types for any subject
-      for (final activityData in _subjectActivityData.values) {
-        final sum = activityData.values.fold(0, (sum, count) => sum + count);
-        if (sum > maxCount) {
-          maxCount = sum.toDouble();
-        }
-      }
-    } else {
-      // Find the maximum count for the selected activity type
-      final selectedType = _selectedActivityType.toLowerCase();
-      for (final activityData in _subjectActivityData.values) {
-        final count = activityData[selectedType] ?? 0;
-        if (count > maxCount) {
-          maxCount = count.toDouble();
-        }
-      }
-    }
-    
-    return maxCount > 0 ? maxCount : 1; // Avoid returning 0 to prevent chart issues
-  }
-  
-  Widget _buildActivityTypeChart() {
-    if (_activityTypeCounts.isEmpty) {
-      return _buildEmptyDataMessage();
-    }
-    
-    // Define colors for each activity type
-    final Map<String, Color> activityColors = {
-      'game': Colors.orange,
-      'note': Colors.blue,
-      'video': Colors.red,
-      'other': Colors.grey,
-    };
-    
-    // Create sections for the pie chart
-    final List<PieChartSectionData> sections = [];
-    
-    // Calculate total activities for percentage
-    final int totalActivities = _activityTypeCounts.values.fold(0, (sum, count) => sum + count);
-    
-    // Create a section for each activity type
-    _activityTypeCounts.forEach((type, count) {
-      if (count > 0) { // Only add non-zero sections
-        final double percentage = totalActivities > 0 ? (count / totalActivities) * 100 : 0;
-        
-        // Get friendly name for the activity type
-        String typeName = type;
-        switch (type) {
-          case 'game':
-            typeName = 'Games';
-            break;
-          case 'note':
-            typeName = 'Notes';
-            break;
-          case 'video':
-            typeName = 'Videos';
-            break;
-          default:
-            typeName = 'Other';
-        }
-        
-        sections.add(
-          PieChartSectionData(
-            color: activityColors[type] ?? Colors.grey,
-            value: count.toDouble(),
-            title: '$typeName\n${percentage.toStringAsFixed(1)}%',
-            radius: 100,
-            titleStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        );
-      }
-    });
-    
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: PieChart(
-              PieChartData(
-                sections: sections,
-                sectionsSpace: 2,
-                centerSpaceRadius: 40,
-                startDegreeOffset: 180,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Legend
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: activityColors.entries.map((entry) {
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: entry.value,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildChartLegend() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: _studyMinutes.entries.map((entry) {
-          final index = _studyMinutes.keys.toList().indexOf(entry.key);
-          final color = Colors.primaries[index % Colors.primaries.length];
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    entry.key,
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${entry.value} min',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-  
-  Widget _buildDailyActivityChart() {
-    if (_progressData.isEmpty) {
-      return _buildEmptyDataMessage();
-    }
-    
-    // Group data by day
-    final Map<String, int> dailyPoints = {};
-    
-    for (final data in _progressData) {
-      final timestamp = data['timestamp'] as Timestamp?;
-      if (timestamp != null) {
-        final date = DateFormat('MM/dd').format(timestamp.toDate());
-        final points = data['points'] as int? ?? 0;
-        dailyPoints[date] = (dailyPoints[date] ?? 0) + points;
-      }
-    }
-    
-    // Sort by date
-    final sortedDays = dailyPoints.keys.toList()
-      ..sort((a, b) {
-        final dateA = DateFormat('MM/dd').parse(a);
-        final dateB = DateFormat('MM/dd').parse(b);
-        return dateA.compareTo(dateB);
-      });
-    
-    // Create line chart data
-    final spots = <FlSpot>[];
-    for (int i = 0; i < sortedDays.length; i++) {
-      final day = sortedDays[i];
-      final points = dailyPoints[day] ?? 0;
-      spots.add(FlSpot(i.toDouble(), points.toDouble()));
-    }
-    
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: LineChart(
-        LineChartData(
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              tooltipBgColor: Colors.purple.shade100,
-              getTooltipItems: (touchedSpots) {
-                return touchedSpots.map((spot) {
-                  final index = spot.x.toInt();
-                  if (index >= 0 && index < sortedDays.length) {
-                    final day = sortedDays[index];
-                    return LineTooltipItem(
-                      '$day: ${spot.y.toInt()} points',
-                      const TextStyle(color: Colors.purple),
-                    );
-                  }
-                  return null;
-                }).toList();
-              },
-            ),
-          ),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: 20,
-            getDrawingHorizontalLine: (value) {
-              return FlLine(
-                color: Colors.grey.shade200,
-                strokeWidth: 1,
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildActivityTypeStackedBarChart() {
+    if (_activityTypeSubjectData.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Text('No data available for the selected time period'),
+        ),
+      );
+    }
+    
+    final List<String> activityTypes = _activityTypeSubjectData.keys.toList();
+    final List<String> subjects = _subjectScores.keys.toList();
+    
+    return SizedBox(
+      height: 400,
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          maxY: _activityTypeSubjectData.values
+              .map((subjectMap) => subjectMap.values.fold<int>(0, (sum, count) => sum + count))
+              .fold<int>(0, (max, sum) => sum > max ? sum : max)
+              .toDouble() * 1.2,
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              tooltipBgColor: Colors.blueGrey.withOpacity(0.8),
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final activityType = activityTypes[groupIndex];
+                if (rodIndex >= subjects.length) return null;
+                final subject = subjects[rodIndex];
+                final count = _activityTypeSubjectData[activityType]![subject] ?? 0;
+                return BarTooltipItem(
+                  '$subject: $count',
+                  const TextStyle(color: Colors.white),
+                );
+              },
+            ),
           ),
           titlesData: FlTitlesData(
             show: true,
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 30,
                 getTitlesWidget: (value, meta) {
-                  if (value.toInt() >= sortedDays.length || value < 0) {
-                    return const Text('');
-                  }
+                  if (value < 0 || value >= activityTypes.length) return const Text('');
                   return Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                      sortedDays[value.toInt()],
-                      style: const TextStyle(fontSize: 10),
+                      activityTypes[value.toInt()],
+                      style: const TextStyle(fontSize: 12),
                     ),
                   );
                 },
+                reservedSize: 40,
               ),
             ),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
                 getTitlesWidget: (value, meta) {
                   return Text(
                     value.toInt().toString(),
-                    style: const TextStyle(fontSize: 10),
+                    style: const TextStyle(fontSize: 12),
                   );
                 },
+                reservedSize: 30,
               ),
             ),
             topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
+          gridData: FlGridData(show: false),
           borderData: FlBorderData(show: false),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: Colors.purple,
-              barWidth: 3,
-              isStrokeCapRound: true,
-              dotData: FlDotData(show: true),
-              belowBarData: BarAreaData(
-                show: true,
-                color: Colors.purple.withOpacity(0.2),
-              ),
-            ),
-          ],
+          barGroups: List.generate(
+            activityTypes.length,
+            (typeIndex) {
+              final activityType = activityTypes[typeIndex];
+              final subjectMap = _activityTypeSubjectData[activityType]!;
+              
+              List<BarChartRodData> rods = [];
+              for (int i = 0; i < subjects.length; i++) {
+                final subject = subjects[i];
+                rods.add(
+                  BarChartRodData(
+                    toY: (subjectMap[subject] ?? 0).toDouble(),
+                    color: _subjectColors[subject],
+                    width: 20,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4),
+                    ),
+                  ),
+                );
+              }
+              
+              return BarChartGroupData(
+                x: typeIndex,
+                barRods: rods,
+              );
+            },
+          ),
         ),
       ),
     );
   }
   
-  Widget _buildEmptyDataMessage() {
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.info_outline, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'No data available for this time period',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 16,
+  Widget _buildLegend() {
+    final Map<String, Color> colorsToShow = _showBySubject 
+        ? _activityTypeColors 
+        : _subjectColors;
+    
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 16.0,
+      runSpacing: 8.0,
+      children: colorsToShow.entries.map((entry) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: entry.value,
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 1,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(width: 6),
+              Text(
+                // Capitalize first letter of each word
+                entry.key.split(' ').map((word) => 
+                  word.isEmpty ? '' : '${word[0].toUpperCase()}${word.substring(1)}'
+                ).join(' '),
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

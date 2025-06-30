@@ -138,6 +138,13 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
           userName = data['name'] as String;
         }
         
+        // Skip admin users (check both userId and userName)
+        if ((userId.toLowerCase().contains('admin')) || 
+            (userName != null && userName.toLowerCase().contains('admin'))) {
+          print('Skipping admin user: $userId, $userName');
+          continue;
+        }
+        
         // Get age information
         int? userAge;
         if (data.containsKey('age')) {
@@ -187,15 +194,12 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       }
       
       // Query scores collection with filters
-      Query scoresQuery = FirebaseFirestore.instance.collection('scores')
-          .orderBy('timestamp', descending: true);
+      // First get all scores and filter in memory to handle missing timestamps
+      Query scoresQuery = FirebaseFirestore.instance.collection('scores');
       
-      if (_startDate != null) {
-        scoresQuery = scoresQuery.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate));
-      }
-      
-      if (_endDate != null) {
-        scoresQuery = scoresQuery.where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(_endDate.add(const Duration(days: 1))));
+      // Apply student filter if selected
+      if (_selectedStudentId != null) {
+        scoresQuery = scoresQuery.where('userId', isEqualTo: _selectedStudentId);
       }
       
       print('Querying scores with date range: ${DateFormat('yyyy-MM-dd').format(_startDate)} to ${DateFormat('yyyy-MM-dd').format(_endDate)}');
@@ -218,45 +222,79 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       int totalActivities = 0;
       int completedActivities = 0;
       
+      // Process all scores and filter by date in memory
       for (var doc in scoresSnapshot.docs) {
         final scoreData = doc.data() as Map<String, dynamic>;
         final userId = scoreData['userId'] as String?;
         
-        if (userId == null) continue;
-        
-        // Apply student filter
-        if (_selectedStudentId != null && userId != _selectedStudentId) {
-          print('Skipping score record - student filter: $userId != $_selectedStudentId');
-          continue; // Skip if not the selected student
+        if (userId == null) {
+          print('Skipping score record - missing userId');
+          continue;
         }
         
-        print('Processing score record for user: $userId');
+        // Skip users not in our filtered user list
+        if (!userNames.containsKey(userId)) {
+          print('Skipping score record - user not in filtered list: $userId');
+          continue;
+        }
         
-        // Apply date range filter
-        final timestamp = scoreData['timestamp'] as Timestamp?;
-        if (timestamp != null) {
-          final scoreDate = timestamp.toDate();
-          if (scoreDate.isBefore(_startDate) || scoreDate.isAfter(_endDate)) {
-            continue; // Skip if outside date range
-          }
-          
-          // Add to daily trend data
-          final dateKey = DateTime(scoreDate.year, scoreDate.month, scoreDate.day);
-          dailyData[dateKey] ??= {'sessions': 0, 'exercises': 0};
-          dailyData[dateKey]!['exercises'] = (dailyData[dateKey]!['exercises'] ?? 0) + 1;
-          dailyData[dateKey]!['sessions'] = dailyData[dateKey]!['sessions'] ?? 0;
-          
-          // Only count unique sessions per user per day
-          final sessionKey = '$userId-${dateKey.toString()}';
-          if (!uniqueUserIds.contains(sessionKey)) {
-            uniqueUserIds.add(sessionKey);
-            dailyData[dateKey]!['sessions'] = (dailyData[dateKey]!['sessions'] ?? 0) + 1;
+        print('Processing score record for user: $userId (${userNames[userId]})');
+        
+        // Apply date range filter - handle missing timestamps gracefully
+        final timestamp = scoreData['timestamp'];
+        DateTime? scoreDate;
+        
+        if (timestamp is Timestamp) {
+          scoreDate = timestamp.toDate();
+        } else if (timestamp is String) {
+          try {
+            scoreDate = DateTime.parse(timestamp);
+          } catch (e) {
+            print('Invalid timestamp format: $timestamp');
           }
         }
         
-        // Process score data
-        final score = scoreData['score'] as num?;
+        // Skip if timestamp is missing or outside date range
+        if (scoreDate == null) {
+          print('Skipping score record - missing or invalid timestamp');
+          continue;
+        }
+        
+        if (scoreDate.isBefore(_startDate) || scoreDate.isAfter(_endDate.add(const Duration(days: 1)))) {
+          print('Skipping score record - outside date range: $scoreDate');
+          continue;
+        }
+        
+        // Add to daily trend data
+        final dateKey = DateTime(scoreDate.year, scoreDate.month, scoreDate.day);
+        dailyData[dateKey] ??= {'sessions': 0, 'exercises': 0};
+        dailyData[dateKey]!['exercises'] = (dailyData[dateKey]!['exercises'] ?? 0) + 1;
+        
+        // Only count unique sessions per user per day
+        final sessionKey = '$userId-${dateKey.toString()}';
+        if (!uniqueUserIds.contains(sessionKey)) {
+          uniqueUserIds.add(sessionKey);
+          dailyData[dateKey]!['sessions'] = (dailyData[dateKey]!['sessions'] ?? 0) + 1;
+        }
+        
+        // Process score data - handle different data types
+        final scoreValue = scoreData['score'];
+        num? score;
+        
+        if (scoreValue is num) {
+          score = scoreValue;
+        } else if (scoreValue is String) {
+          try {
+            score = num.parse(scoreValue);
+          } catch (e) {
+            print('Invalid score format: $scoreValue');
+          }
+        }
+        
         if (score != null) {
+          // Ensure score is within valid range 0-100
+          score = score.clamp(0, 100);
+          
           totalScores++;
           totalPoints += score.toInt();
           
@@ -272,12 +310,41 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
           } else {
             scoreRanges['81-100'] = (scoreRanges['81-100'] ?? 0) + 1;
           }
+          
+          print('Added score: $score to distribution');
         }
         
-        // Process session duration
-        final duration = scoreData['duration'] as num?;
-        if (duration != null) {
-          final minutes = duration / 60; // Convert seconds to minutes
+        // Process session duration - handle different data types and field names
+        num? duration;
+        
+        // Check for different field names that might contain duration
+        if (scoreData.containsKey('duration')) {
+          final durationValue = scoreData['duration'];
+          if (durationValue is num) {
+            duration = durationValue;
+          } else if (durationValue is String) {
+            try {
+              duration = num.parse(durationValue);
+            } catch (e) {
+              print('Invalid duration format: $durationValue');
+            }
+          }
+        } else if (scoreData.containsKey('studyMinutes')) {
+          final studyMinutes = scoreData['studyMinutes'];
+          if (studyMinutes is num) {
+            // studyMinutes is already in minutes, so we don't need to convert
+            duration = studyMinutes * 60; // Convert to seconds for consistent processing
+          }
+        } else if (scoreData.containsKey('timeSpent')) {
+          final timeSpent = scoreData['timeSpent'];
+          if (timeSpent is num) {
+            duration = timeSpent;
+          }
+        }
+        
+        if (duration != null && duration > 0) { // Ensure positive duration
+          // Convert to minutes and ensure reasonable values (cap at 120 minutes)
+          final minutes = (duration / 60).clamp(0, 120); 
           totalSessionMinutes += minutes.toInt();
           
           // Add to session duration breakdown
@@ -290,23 +357,76 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
           } else {
             _sessionsOver20Min++;
           }
+          
+          print('Added session duration: $minutes minutes');
         }
         
-        // Track completion status
-        final completed = scoreData['completed'] as bool?;
-        if (completed != null) {
-          totalActivities++;
-          if (completed) {
-            completedActivities++;
+        // Track completion status - handle different data types and field names
+        bool? completed;
+        
+        // Check various fields that might indicate completion
+        if (scoreData.containsKey('completed')) {
+          final completedValue = scoreData['completed'];
+          if (completedValue is bool) {
+            completed = completedValue;
+          } else if (completedValue is String) {
+            completed = completedValue.toLowerCase() == 'true';
+          } else if (completedValue is num) {
+            completed = completedValue > 0;
           }
+        } else if (scoreData.containsKey('isCompleted')) {
+          final isCompleted = scoreData['isCompleted'];
+          if (isCompleted is bool) {
+            completed = isCompleted;
+          } else if (isCompleted is String) {
+            completed = isCompleted.toLowerCase() == 'true';
+          } else if (isCompleted is num) {
+            completed = isCompleted > 0;
+          }
+        } else if (scoreData.containsKey('status')) {
+          final status = scoreData['status'];
+          if (status is String) {
+            completed = status.toLowerCase() == 'completed' || status.toLowerCase() == 'done';
+          }
+        }
+        
+        // If score is present and greater than 0, consider it completed
+        if (completed == null && score != null && score > 0) {
+          completed = true;
+        }
+        
+        // Always count the activity
+        totalActivities++;
+        
+        if (completed == true) { // Explicitly check for true
+          completedActivities++;
+          print('Counted completed activity');
         }
       }
       
       // Calculate averages and rates
       _totalActivities = totalActivities;
-      _averageScore = totalScores > 0 ? totalPoints / totalScores : 0;
-      _averageSessionLength = totalScores > 0 ? totalSessionMinutes / totalScores : 0;
-      _completionRate = totalActivities > 0 ? (completedActivities / totalActivities) * 100 : 0;
+      
+      // Fix average score calculation - ensure we're using the actual count of scores
+      _averageScore = totalScores > 0 ? totalPoints.toDouble() / totalScores : 0.0;
+      
+      // Fix average session length calculation - use total session minutes divided by number of sessions
+      int totalSessions = _sessionsUnder5Min + _sessions5to10Min + _sessions10to20Min + _sessionsOver20Min;
+      _averageSessionLength = totalSessions > 0 ? totalSessionMinutes.toDouble() / totalSessions : 0.0;
+      
+      // Fix completion rate calculation
+      _completionRate = totalActivities > 0 ? (completedActivities.toDouble() / totalActivities) * 100 : 0.0;
+      
+      print('Analytics calculations: ');
+      print('Total activities: $totalActivities');
+      print('Completed activities: $completedActivities');
+      print('Completion rate: $_completionRate%');
+      print('Total scores: $totalScores');
+      print('Total points: $totalPoints');
+      print('Average score: $_averageScore');
+      print('Total sessions: $totalSessions');
+      print('Total session minutes: $totalSessionMinutes');
+      print('Average session length: $_averageSessionLength minutes');
       
       // Convert daily data to time series
       List<DateTime> dateRange = [];
@@ -420,18 +540,8 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                   
                   SizedBox(height: isMobile ? 16 : 24),
                   
-                  // Summary tiles
+                  // Summary tiles - only section we're keeping
                   _buildSummaryTiles(),
-                  
-                  SizedBox(height: isMobile ? 16 : 24),
-                  
-                  // Trend charts
-                  _buildTrendCharts(),
-                  
-                  SizedBox(height: isMobile ? 16 : 24),
-                  
-                  // Engagement breakdown
-                  _buildEngagementBreakdown(),
                 ],
               ),
             ),
@@ -758,7 +868,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                           Expanded(
                             child: _buildSummaryTile(
                               title: 'Avg. Score',
-                              value: _averageScore.toStringAsFixed(1),
+                              value: _averageScore.toStringAsFixed(1) + '%',
                               icon: Icons.star,
                               color: Colors.amber,
                             ),

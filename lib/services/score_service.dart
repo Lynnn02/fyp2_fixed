@@ -19,6 +19,7 @@ class ScoreService {
     required String activityName,
     required int points,
     required int ageGroup,
+    String? chapterName, // Add optional chapterName parameter
   }) async {
     try {
       final timestamp = DateTime.now();
@@ -133,36 +134,62 @@ class ScoreService {
         realUserName = 'Student ${actualUserId.substring(0, min(4, actualUserId.length))}';
         print('Using generic name: $realUserName for user ID: $actualUserId');
       }
+      // Create a map for the score data to include chapterName if provided
+      Map<String, dynamic> scoreData = {
+        'id': _uuid.v4(),
+        'userId': actualUserId, // Use the actual userId, not default_user
+        'userName': realUserName, // Use the real student name we looked up
+        'subjectId': subjectId,
+        'subjectName': subjectName,
+        'activityId': activityId,
+        'activityType': activityType,
+        'activityName': activityName,
+        'points': points,
+        'timestamp': timestamp,
+        'ageGroup': ageGroup,
+      };
+      
+      // Add chapterName if provided
+      if (chapterName != null && chapterName.isNotEmpty) {
+        scoreData['chapterName'] = chapterName;
+      }
+      
       final score = Score(
-        id: _uuid.v4(),
-        userId: actualUserId, // Use the actual userId, not default_user
-        userName: realUserName, // Use the real student name we looked up
-        subjectId: subjectId,
-        subjectName: subjectName,
-        activityId: activityId,
-        activityType: activityType,
-        activityName: activityName,
-        points: points,
-        timestamp: timestamp,
-        ageGroup: ageGroup,
+        id: scoreData['id'],
+        userId: scoreData['userId'],
+        userName: scoreData['userName'],
+        subjectId: scoreData['subjectId'],
+        subjectName: scoreData['subjectName'],
+        activityId: scoreData['activityId'],
+        activityType: scoreData['activityType'],
+        activityName: scoreData['activityName'],
+        points: scoreData['points'],
+        timestamp: scoreData['timestamp'],
+        ageGroup: scoreData['ageGroup'],
       );
 
-      // Save to scores collection
-      await _firestore.collection('scores').doc(score.id).set(score.toJson());
+      // Save to scores collection with additional chapterName field if provided
+      await _firestore.collection('scores').doc(score.id).set(scoreData);
       
       // Also save to progress collection for child progress tracking
-      await _firestore.collection('progress').add({
+      Map<String, dynamic> progressData = {
         'userId': actualUserId, // Use the actual userId, not default_user
         'userName': realUserName, // Add the real student name
         'subject': subjectName,
-        'chapterName': activityName,
+        'subjectName': subjectName, // Add explicit subjectName field
+        'activityName': activityName,
         'points': points,
         'studyMinutes': 5, // Default study time in minutes
         'timestamp': Timestamp.fromDate(timestamp),
         'activityType': activityType,
         'gameType': activityName.toLowerCase().contains('matching') ? 'matching' : 
                     activityName.toLowerCase().contains('tracing') ? 'tracing' : 'other',
-      });
+      };
+      
+      // Use provided chapterName if available, otherwise use activityName
+      progressData['chapterName'] = chapterName ?? activityName;
+      
+      await _firestore.collection('progress').add(progressData);
       
       print('Progress data saved for child progress tracking');
     } catch (e) {
