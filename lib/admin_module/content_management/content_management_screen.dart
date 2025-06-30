@@ -294,11 +294,13 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.note_add, color: Colors.green),
+                  icon: chapter.noteId != null 
+                      ? const Icon(Icons.edit_note, color: Colors.green)
+                      : const Icon(Icons.note_add, color: Colors.green),
                   onPressed: () {
                     _showAddNoteDialog(context, subject, chapter);
                   },
-                  tooltip: 'Add/Edit Note',
+                  tooltip: chapter.noteId != null ? 'Edit Note' : 'Create Note',
                 ),
                 IconButton(
                   icon: chapter.videoUrl != null
@@ -331,67 +333,50 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           ),
           
           // Published note info (if exists)
-          FutureBuilder<Note?>(
-            future: _contentService.getNoteForChapter(subject.id, chapter.id),
-            builder: (context, noteSnapshot) {
-              if (noteSnapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                );
-              }
-              
-              final publishedNote = noteSnapshot.data;
-              
-              if (publishedNote != null) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: _getAgeColor(subject.moduleId).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: _getAgeColor(subject.moduleId), width: 1),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.auto_stories, color: _getAgeColor(subject.moduleId)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Published Note: ${publishedNote.title}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                '${publishedNote.elements.length} elements · Created ${_formatTimestamp(publishedNote.createdAt)}',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                              ),
-                            ],
+          if (chapter.noteId != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                padding: const EdgeInsets.all(8.0),
+                decoration: BoxDecoration(
+                  color: _getAgeColor(subject.moduleId).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(color: _getAgeColor(subject.moduleId), width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_stories, color: _getAgeColor(subject.moduleId)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Published Note: ${chapter.noteTitle ?? "Flashcard Note"}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        // Preview button removed as requested
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.green),
-                          tooltip: 'Edit Note',
-                          onPressed: () => _editPublishedNote(subject, chapter),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          tooltip: 'Delete Note',
-                          onPressed: () => _showDeleteNoteDialog(context, subject, chapter),
-                        ),
-                      ],
+                          if (chapter.noteLastUpdated != null)
+                            Text(
+                              'Updated ${_formatTimestamp(chapter.noteLastUpdated!)}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              } else {
-                return const SizedBox.shrink(); // No published note
-              }
-            },
-          ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.green),
+                      tooltip: 'Edit Note',
+                      onPressed: () => _editPublishedNote(subject, chapter),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Delete Note',
+                      onPressed: () => _showDeleteNoteDialog(context, subject, chapter),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           
           // Published game info (if exists)
           if (chapter.gameId != null && chapter.gameType != null)
@@ -454,24 +439,18 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Note button
-                FutureBuilder<Note?>(
-                  future: _contentService.getNoteForChapter(subject.id, chapter.id),
-                  builder: (context, noteSnapshot) {
-                    final hasNote = noteSnapshot.data != null;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ElevatedButton.icon(
-                        icon: Icon(hasNote ? Icons.edit_note : Icons.note_add),
-                        label: Text(hasNote ? 'Edit Note' : 'Create Note'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        onPressed: () => _showAddNoteDialog(context, subject, chapter),
-                      ),
-                    );
-                  },
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ElevatedButton.icon(
+                    icon: Icon(chapter.noteId != null ? Icons.edit_note : Icons.note_add),
+                    label: Text(chapter.noteId != null ? 'Edit Note' : 'Create Note'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () => _showAddNoteDialog(context, subject, chapter),
+                  ),
                 ),
                 // Game button
                 ElevatedButton.icon(
@@ -777,8 +756,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
   }
   
   // Rich note editor has been removed in favor of AI-generated content
-  void _openTemplateSelection(BuildContext context, Subject subject, Chapter chapter) {
-    Navigator.push(
+  Future<void> _openTemplateSelection(BuildContext context, Subject subject, Chapter chapter) async {
+    // Navigate to template selection and wait for result
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => NoteTemplateSelectionScreen(
@@ -788,6 +768,14 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         ),
       ),
     );
+    
+    // If we got a true result (note was published) or any result (to be safe), refresh the UI
+    if (result != null) {
+      // Refresh the UI to show the updated note status
+      setState(() {
+        // This will trigger a rebuild of the UI
+      });
+    }
   }
   
   void _showAddVideoDialog(BuildContext context, Subject subject, Chapter chapter) {

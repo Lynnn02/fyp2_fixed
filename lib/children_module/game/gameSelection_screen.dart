@@ -248,8 +248,11 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.logout, color: Colors.white),
-          onPressed: () => _showSignOutDialog(context),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            Navigator.pop(context);
+          },
         ),
       ),
       body: Stack(
@@ -391,56 +394,6 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size(double.infinity, 60),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(30),
-                                      ),
-                                      elevation: 5,
-                                    ),
-                                  ),
-                                  
-                                  const SizedBox(height: 16),
-                                  
-                                  // Leaderboard button
-                                  ElevatedButton.icon(
-                                    onPressed: () => Navigator.pushNamed(context, '/leaderboard'),
-                                    icon: const Icon(Icons.leaderboard, size: 30),
-                                    label: const Text(
-                                      'LEADERBOARD',
-                                      style: TextStyle(
-                                        fontFamily: 'ITEM',
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.amber,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size(double.infinity, 60),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(30),
-                                      ),
-                                      elevation: 5,
-                                    ),
-                                  ),
-                                  
-                                  const SizedBox(height: 16),
-                                  
-                                  // Settings button
-                                  ElevatedButton.icon(
-                                    onPressed: () => Navigator.pushNamed(context, '/settings'),
-                                    icon: const Icon(Icons.settings, size: 30),
-                                    label: const Text(
-                                      'SETTING',
-                                      style: TextStyle(
-                                        fontFamily: 'ITEM',
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.grey,
                                       foregroundColor: Colors.white,
                                       minimumSize: const Size(double.infinity, 60),
                                       shape: RoundedRectangleBorder(

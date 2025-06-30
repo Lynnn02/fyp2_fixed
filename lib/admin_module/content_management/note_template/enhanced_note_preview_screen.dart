@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../models/note_content.dart';
 import '../../../models/container_element.dart';
 import '../../../models/subject.dart';
 import '../../../models/chapter.dart';
+import '../../../services/score_service.dart';
 import 'widgets/note_completion_dialog.dart';
 import '../../../services/flashcard_service.dart';
 import '../../../services/flashcard_media_service.dart';
@@ -279,9 +281,9 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   @override
   void dispose() {
     // Safely dispose the audio player if it exists
-    if (_backgroundMusicPlayer != null) {
+    if (_bgMusicPlayer != null) {
       try {
-        _backgroundMusicPlayer!.dispose();
+        _bgMusicPlayer!.dispose();
       } catch (e) {
         print('Error disposing audio player: $e');
       }
@@ -1261,7 +1263,10 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   }
   
   // Method to publish the note
-  void _publishNote() async {
+  Future<void> _publishNote() async {
+    // Check if widget is still mounted before proceeding
+    if (!mounted) return;
+    
     try {
       // Show loading indicator
       showDialog(
@@ -1272,11 +1277,22 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
         ),
       );
       
+      // Calculate study minutes from start time
+      final now = DateTime.now();
+      final duration = now.difference(_startTime);
+      final studyMinutes = (duration.inSeconds / 60).ceil(); // Round up to nearest minute
+      
+      // Fixed score and stars for notes
+      final int score = 100;
+      final int stars = 5;
+      
       // Create a note document with the current elements
       final noteDoc = {
         'title': _noteTitle,
-        'subject': widget.subject,
-        'chapter': widget.chapter,
+        'subject': widget.subject.name,
+        'subjectId': widget.subject.id,
+        'chapter': widget.chapter.name,
+        'chapterId': widget.chapter.id,
         'language': widget.language,
         'templateName': widget.templateName,
         'ageGroup': widget.age,
@@ -1284,10 +1300,11 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
         'updatedAt': Timestamp.now(),
         'isPublished': true,
         'elements': _noteElements.map((e) => e.toJson()).toList(),
-        'score': 100, // Fixed score of 100 for completion tracking
-        'stars': 5,   // Fixed 5 stars for progress tracking
+        'score': score, // Fixed score of 100 for completion tracking
+        'stars': stars, // Fixed 5 stars for progress tracking
         'type': 'note', // Specify that this is a note for the child module
         'completionStatus': 'completed', // Mark as completed
+        'studyMinutes': studyMinutes, // Add study time tracking
       };
       
       // Get the reference to the subject document
@@ -1296,7 +1313,7 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
           .doc(widget.subject.id);
       
       // Save to Firestore in the notes collection for child module access
-      await FirebaseFirestore.instance
+      DocumentReference noteRef = await FirebaseFirestore.instance
           .collection('notes')
           .add(noteDoc);
       
@@ -1306,6 +1323,58 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
         'noteLastUpdated': Timestamp.now(),
       });
       
+      // Update the chapter in the subject document to associate it with the note
+      // First get the current subject data
+      DocumentSnapshot subjectSnapshot = await subjectRef.get();
+      if (subjectSnapshot.exists) {
+        // Get the chapters array
+        final chapters = (subjectSnapshot.data() as Map<String, dynamic>)['chapters'] as List<dynamic>? ?? [];
+        final chapterIndex = chapters.indexWhere((c) => c['id'] == widget.chapter.id);
+        
+        if (chapterIndex != -1) {
+          // Update the chapter with note information
+          chapters[chapterIndex]['noteId'] = noteRef.id;
+          chapters[chapterIndex]['noteTitle'] = _noteTitle;
+          chapters[chapterIndex]['noteLastUpdated'] = Timestamp.now();
+          
+          // Update the subject document with the modified chapters array
+          await subjectRef.update({
+            'chapters': chapters,
+          });
+        }
+      }
+      
+      // Record the score in the scores collection for leaderboard functionality
+      try {
+        // Get current user ID
+        String userId = FirebaseAuth.instance.currentUser?.uid ?? 'default_user';
+        String userName = FirebaseAuth.instance.currentUser?.displayName ?? 'Default User';
+        
+        // Create score service instance
+        final scoreService = ScoreService();
+        
+        // Add score entry
+        await scoreService.addScore(
+          userId: userId,
+          userName: userName,
+          subjectId: widget.subject.id,
+          subjectName: widget.subject.name,
+          activityId: noteRef.id,
+          activityType: 'note',
+          activityName: _noteTitle,
+          points: score,
+          ageGroup: widget.age,
+        );
+        
+        print('Score recorded successfully for note: $_noteTitle');
+      } catch (scoreError) {
+        print('Error recording score: $scoreError');
+        // Continue with the publishing process even if score recording fails
+      }
+      
+      // Check if widget is still mounted before proceeding with UI updates
+      if (!mounted) return;
+      
       // Close loading dialog
       Navigator.of(context).pop();
       
@@ -1314,9 +1383,12 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
         const SnackBar(content: Text('Note published successfully!')),
       );
       
-      // Navigate back to content management screen
-      Navigator.of(context).pop();
+      // Navigate back to content management screen with refresh signal
+      Navigator.of(context).pop(true); // Pass true to indicate successful publishing
     } catch (e) {
+      // Check if widget is still mounted before proceeding with UI updates
+      if (!mounted) return;
+      
       // Close loading dialog
       Navigator.of(context).pop();
       
@@ -1327,10 +1399,6 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
     }
   }
   
-  // The duplicate _regenerateFlashcards method was removed
-  // The original implementation is at the top of the file
-  
-  // We've removed the audio element UI since we're using background music instead
   // of individual audio elements for each flashcard
   
   // Helper method to build a kid-friendly element

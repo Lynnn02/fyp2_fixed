@@ -371,9 +371,9 @@ class _NoteTemplateSelectionScreenState extends State<NoteTemplateSelectionScree
     }
   }
 
-  void _generateFlashcardNote() {
+  Future<void> _generateFlashcardNote() async {
     // Navigate to the enhanced note preview screen with all required parameters
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EnhancedNotePreviewScreen(
@@ -384,5 +384,11 @@ class _NoteTemplateSelectionScreenState extends State<NoteTemplateSelectionScree
         ),
       ),
     );
+    
+    // If we got a true result (note was published), pass it back to the content management screen
+    if (result == true) {
+      // Pop back to content management screen with the result
+      Navigator.pop(context, true);
+    }
   }
 }

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/game_template_manager.dart';
 import '../../../game_template/matching_game.dart';
 import '../../../game_template/sorting_game.dart';
 import '../../../game_template/tracing_game.dart';
 import '../../../game_template/shape_color_game.dart';
 import '../../../services/database_service.dart';
+import '../../../services/score_service.dart';
 
 class GameTemplatePreviewScreen extends StatefulWidget {
   final GameTemplateInfo templateInfo;
@@ -33,12 +36,14 @@ class GameTemplatePreviewScreen extends StatefulWidget {
 
 class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
   final DatabaseService _databaseService = DatabaseService();
+  final ScoreService _scoreService = ScoreService();
   bool _isPublishing = false;
   bool _isEditing = false;
   String _gameName = '';
   String _gameDescription = '';
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  DateTime _startTime = DateTime.now(); // Track when the preview started
   
   @override
   void initState() {
@@ -48,6 +53,9 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
     
     _nameController.text = _gameName;
     _descriptionController.text = _gameDescription;
+    
+    // Initialize start time for study minutes tracking
+    _startTime = DateTime.now();
   }
   
   @override
@@ -74,6 +82,16 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
     });
     
     try {
+      // Calculate study minutes from start time
+      final now = DateTime.now();
+      final duration = now.difference(_startTime);
+      final studyMinutes = (duration.inSeconds / 60).ceil(); // Round up to nearest minute
+      
+      // For games, we can calculate a score based on template type
+      // This is a placeholder - in a real app, you'd get this from game completion
+      int score = 85; // Default score for games
+      int stars = 4;  // Default stars for games
+      
       // Create game document in database
       final gameData = {
         'name': _gameName,
@@ -87,10 +105,40 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
         'content': jsonEncode(widget.gameContent),
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
+        'score': score, // Add score field for consistency with notes
+        'stars': stars, // Add stars field for consistency with notes
+        'type': 'game', // Specify that this is a game for the child module
+        'completionStatus': 'completed', // Mark as completed
+        'studyMinutes': studyMinutes, // Add study time tracking
       };
       
       // Save to database
       final gameId = await _databaseService.addGame(gameData);
+      
+      // Record the score in the scores collection for leaderboard functionality
+      try {
+        // Get current user ID
+        String userId = FirebaseAuth.instance.currentUser?.uid ?? 'default_user';
+        String userName = FirebaseAuth.instance.currentUser?.displayName ?? 'Default User';
+        
+        // Add score entry
+        await _scoreService.addScore(
+          userId: userId,
+          userName: userName,
+          subjectId: widget.subjectId,
+          subjectName: widget.subjectName,
+          activityId: gameId,
+          activityType: 'game',
+          activityName: _gameName,
+          points: score,
+          ageGroup: widget.ageGroup,
+        );
+        
+        print('Score recorded successfully for game: $_gameName');
+      } catch (scoreError) {
+        print('Error recording score: $scoreError');
+        // Continue with the publishing process even if score recording fails
+      }
       
       if (!mounted) return;
       

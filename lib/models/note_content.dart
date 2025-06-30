@@ -347,6 +347,7 @@ class DocumentElement extends NoteContentElement {
 }
 
 class Note {
+  final String id;
   final String title;
   final String? description;
   final List<NoteContentElement> elements;
@@ -355,6 +356,7 @@ class Note {
   final Timestamp? updatedAt;
 
   Note({
+    this.id = '',
     required this.title,
     this.description,
     required this.elements,
@@ -367,6 +369,7 @@ class Note {
     var elementsData = json['elements'] as List<dynamic>? ?? [];
     
     return Note(
+      id: json['id'] as String? ?? '',
       title: json['title'] as String,
       description: json['description'] as String?,
       elements: elementsData
@@ -377,8 +380,31 @@ class Note {
       updatedAt: json['updatedAt'] as Timestamp?,
     );
   }
+  
+  factory Note.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    print('Note data from Firestore: ${data.keys.toList()}');
+    
+    // Check if elements exist and are properly formatted
+    if (data.containsKey('elements')) {
+      print('Elements found in note data: ${data['elements'].runtimeType}');
+      if (data['elements'] is List) {
+        print('Elements count: ${(data['elements'] as List).length}');
+      }
+    } else {
+      print('WARNING: No elements field found in note data');
+      // Create empty elements list if missing
+      data['elements'] = [];
+    }
+    
+    return Note.fromJson({
+      'id': doc.id,
+      ...data,
+    });
+  }
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'title': title,
         'description': description,
         'elements': elements.map((e) => e.toJson()).toList(),

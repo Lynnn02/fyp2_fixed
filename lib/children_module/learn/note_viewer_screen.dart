@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 
 import '../../models/note_content.dart';
 import '../../services/content_service.dart';
 import '../../services/score_service.dart';
 import '../../widgets/child_ui_style.dart';
+import '../../admin_module/content_management/note_template/widgets/note_completion_dialog.dart';
 import 'fixed_text_element.dart' as fix;
-import '../../widgets/activity_completion_screen.dart';
 
 // Define ContainerElement since it's not in the original models
 class ContainerElement extends NoteContentElement {
@@ -48,6 +48,7 @@ class NoteViewerScreen extends StatefulWidget {
   final String userId;
   final String userName;
   final int ageGroup;
+  final String language; // Added language parameter
 
   const NoteViewerScreen({
     Key? key,
@@ -59,6 +60,7 @@ class NoteViewerScreen extends StatefulWidget {
     required this.userId,
     required this.userName,
     required this.ageGroup,
+    this.language = 'ms', // Default to Malay language
   }) : super(key: key);
 
   @override
@@ -68,28 +70,44 @@ class NoteViewerScreen extends StatefulWidget {
 class _NoteViewerScreenState extends State<NoteViewerScreen> {
   final ContentService _contentService = ContentService();
   final ScoreService _scoreService = ScoreService();
+  
+  // Page controller for swipe navigation
   late PageController _pageController;
   int _currentPage = 0;
+  
+  // Note content organized into pages
   List<List<NoteContentElement>> _pages = [];
+  
+  // Child's age for adapting content
   int _childAge = 5; // Default age
+  
+  // Scoring variables
   bool _scoreSubmitted = false;
   bool _completedReading = false;
   bool _showCompletionScreen = false;
   int _earnedPoints = 0;
   DateTime _startTime = DateTime.now();
   
-  // Audio players for note content
+  // Audio players for note content and flashcards
   final Map<String, AudioPlayer> _audioPlayers = <String, AudioPlayer>{};
-  
-  // Audio players for flashcards
-  final AudioPlayer _flashcardAudioPlayer = AudioPlayer();
-  final AudioPlayer _bgMusicPlayer = AudioPlayer();
+  AudioPlayer? _audioPlayer; // For flashcard audio
+  AudioPlayer? _backgroundMusicPlayer; // For background music
   String? _currentlyPlayingAudioId;
-  bool _isBgMusicPlaying = false;
+  bool _isBackgroundMusicPlaying = false;
 
   @override
   void initState() {
     super.initState();
+    print('NoteViewerScreen - initState called');
+    print('Note ID: ${widget.note.id}');
+    print('Note title: ${widget.note.title}');
+    print('Note elements count: ${widget.note.elements.length}');
+    if (widget.note.elements.isNotEmpty) {
+      print('First element type: ${widget.note.elements.first.type}');
+    } else {
+      print('WARNING: Note has no elements!');
+    }
+    
     _childAge = widget.ageGroup; // Use the provided age group
     _groupElementsIntoPages();
     
@@ -108,11 +126,39 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
       const bgMusicUrl = 'https://example.com/childrens_background_music.mp3';
       // You should replace this with an actual music URL or asset
       // For now we'll just set it up without playing
-      await _bgMusicPlayer.setLoopMode(LoopMode.all);
-      await _bgMusicPlayer.setUrl(bgMusicUrl);
+      
+      _backgroundMusicPlayer = AudioPlayer();
+      try {
+        await _backgroundMusicPlayer!.setUrl(bgMusicUrl);
+        await _backgroundMusicPlayer!.setLoopMode(LoopMode.one); // Loop the music
+      } catch (error) {
+        debugPrint('Error setting background music URL: $error');
+        // Use a fallback URL or asset if available
+      }
+      _isBackgroundMusicPlaying = false; // Initialize to false
     } catch (e) {
       debugPrint('Error setting up background music: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _pageController.removeListener(_onPageChanged);
+    _pageController.dispose();
+    
+    // Dispose of all audio players in the map
+    for (final player in _audioPlayers.values) {
+      player.dispose();
+    }
+    _audioPlayers.clear();
+    
+    // Dispose of flashcard audio player
+    _audioPlayer?.dispose();
+    
+    // Dispose of background music player
+    _backgroundMusicPlayer?.dispose();
+    
+    super.dispose();
   }
 
   void _onPageChanged() {
@@ -149,24 +195,20 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
             }
           }
         }
-        _submitScore();
+        
+        // Only check completion when we reach the last page
+        if (page == _pages.length - 1) {
+          _checkCompletion();
+        }
       }
     }
   }
 
-  @override
-  void dispose() {
-    _pageController.removeListener(_onPageChanged);
-    _pageController.dispose();
-    
-    // Dispose all audio players
-    for (var player in _audioPlayers.values) {
-      player.dispose();
+  // Submit score when the user completes reading the note
+  void _checkCompletion() {
+    if (_currentPage == _pages.length - 1 && !_scoreSubmitted) {
+      _submitScore();
     }
-    _flashcardAudioPlayer.dispose();
-    _bgMusicPlayer.dispose();
-    
-    super.dispose();
   }
   
   // Submit score to the database
@@ -174,13 +216,8 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
     if (_scoreSubmitted) return; // Prevent duplicate submissions
     
     try {
-      // Calculate points based on note length and age group
-      int basePoints = 5; // Base points for completing a note
-      int lengthBonus = widget.note.elements.length ~/ 3; // Bonus for longer notes
-      int totalPoints = basePoints + lengthBonus;
-      
-      // Cap points between 5-15 based on age group and content length
-      totalPoints = math.min(math.max(totalPoints, 5), 15);
+      // Always use 100 points as requested
+      const int totalPoints = 100;
       
       // Calculate study time in minutes
       final now = DateTime.now();
@@ -204,26 +241,45 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
         _earnedPoints = totalPoints;
       });
       
-      // Show completion screen with animation and sound
-      Navigator.of(context).push(
-        PageRouteBuilder(
-          opaque: false,
-          pageBuilder: (context, animation, secondaryAnimation) => ActivityCompletionScreen(
-            activityType: 'note',
-            activityName: widget.note.title,
-            subject: widget.subjectName,
+      // Always use 5 stars as requested
+      const int stars = 5;
+      
+      // Show completion dialog with animation
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierLabel: 'Note Completion',
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (context, animation1, animation2) {
+          return NoteCompletionDialog(
             points: totalPoints,
-            studyMinutes: studyMinutes,
-            userId: widget.userId,
+            stars: stars,
+            subject: widget.subjectName,
+            minutes: studyMinutes,
+            onTryAgain: () {
+              // Reset to first page
+              _pageController.animateToPage(
+                0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              Navigator.of(context).pop();
+            },
             onContinue: () {
               Navigator.of(context).pop();
               Navigator.of(context).pop(); // Return to chapter selection
             },
-          ),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
+          );
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          return ScaleTransition(
+            scale: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutBack,
+            ),
+            child: child,
+          );
+        },
       );
     } catch (e) {
       print('Error submitting score: $e');
@@ -233,43 +289,78 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
 
 
   void _groupElementsIntoPages() {
+    print('_groupElementsIntoPages called');
     final elements = widget.note.elements;
+    print('Processing ${elements.length} elements');
+    
     List<List<NoteContentElement>> pages = [];
-    List<NoteContentElement> currentPage = [];
-
-    // Determine max elements per page based on age
-    int maxElementsPerPage;
-    switch (_childAge) {
-      case 4:
-        maxElementsPerPage = 3; // Fewer elements for younger children
-        break;
-      case 5:
-        maxElementsPerPage = 4; // Medium number of elements
-        break;
-      case 6:
-        maxElementsPerPage = 5; // More elements for older children
-        break;
-      default:
-        maxElementsPerPage = 4;
-    }
-
+    
+    // First, check if there are flashcard elements
+    List<NoteContentElement> flashcardElements = [];
+    List<NoteContentElement> otherElements = [];
+    
     for (var element in elements) {
-      // If we've reached max elements per page
-      if (currentPage.length >= maxElementsPerPage) {
-        pages.add(List.from(currentPage));
-        currentPage.clear();
+      if (element.type == 'flashcard') {
+        flashcardElements.add(element);
+      } else {
+        otherElements.add(element);
       }
-
-      currentPage.add(element);
     }
-
-    // Add the last page if not empty
-    if (currentPage.isNotEmpty) {
-      pages.add(currentPage);
+    
+    print('Found ${flashcardElements.length} flashcard elements and ${otherElements.length} other elements');
+    
+    // If we have flashcards, each flashcard gets its own page
+    if (flashcardElements.isNotEmpty) {
+      print('Creating pages for flashcards - one page per flashcard');
+      for (var flashcard in flashcardElements) {
+        pages.add([flashcard]);
+      }
+    } else {
+      // For non-flashcard content, group by age-appropriate counts
+      print('No flashcards found, grouping other elements by age');
+      List<NoteContentElement> currentPage = [];
+      
+      // Determine max elements per page based on age
+      int maxElementsPerPage;
+      switch (widget.ageGroup) {
+        case 4:
+          maxElementsPerPage = 3; // Fewer elements for younger children
+          break;
+        case 5:
+          maxElementsPerPage = 4; // Medium number of elements
+          break;
+        case 6:
+          maxElementsPerPage = 5; // More elements for older children
+          break;
+        default:
+          maxElementsPerPage = 4;
+      }
+      print('Max elements per page for age ${widget.ageGroup}: $maxElementsPerPage');
+      
+      for (var element in otherElements) {
+        // If we've reached max elements per page
+        if (currentPage.length >= maxElementsPerPage) {
+          pages.add(List.from(currentPage));
+          currentPage.clear();
+        }
+        
+        currentPage.add(element);
+      }
+      
+      // Add the last page if not empty
+      if (currentPage.isNotEmpty) {
+        pages.add(List.from(currentPage));
+      }
     }
-
+    
+    print('Created ${pages.length} pages');
+    for (var i = 0; i < pages.length; i++) {
+      print('Page $i has ${pages[i].length} elements');
+    }
+    
     setState(() {
       _pages = pages;
+      print('_pages updated with ${_pages.length} pages');
     });
   }
 
@@ -281,6 +372,16 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   Widget build(BuildContext context) {
     // We're now using ActivityCompletionScreen which is shown as an overlay
     // So we don't need this code anymore
+    
+    print('Build method called');
+    print('Pages count: ${_pages.length}');
+    if (_pages.isEmpty) {
+      print('WARNING: No pages available to display!');
+    } else {
+      for (var i = 0; i < _pages.length; i++) {
+        print('Page $i has ${_pages[i].length} elements');
+      }
+    }
     
     // Extract arguments if they exist
     Note actualNote = widget.note;
@@ -357,72 +458,102 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
               // Main content layout
               Column(
                 children: [
-                  // Top navigation icons
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
+                  // App bar with back button - similar to admin preview UI
+                  Container(
+                    color: Colors.indigo.shade700,
+                    padding: const EdgeInsets.only(top: 8, bottom: 8, left: 8, right: 16),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _buildCircularButton(Icons.home, Colors.blue.shade900, () {
-                          Navigator.popUntil(context, ModalRoute.withName('/'));
-                        }),
-                        _buildCircularButton(Icons.volume_up, Colors.amber, () {
-                          // Toggle sound - this is for general UI sounds
-                          // We'll leave this empty for now as it's handled by the flashcard audio
-                        }),
-                        _buildCircularButton(
-                          _isBgMusicPlaying ? Icons.music_note : Icons.music_off,
-                          _isBgMusicPlaying ? Colors.blue.shade800 : Colors.grey.shade600,
-                          () {
-                            _toggleBackgroundMusic();
-                          }),
+                        // Back button
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        // Chapter name in dark blue header
+                        Expanded(
+                          child: Text(
+                            actualChapterName, // Display chapter name from Firebase
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // Background music toggle button
+                        IconButton(
+                          icon: Icon(
+                            _isBackgroundMusicPlaying ? Icons.music_note : Icons.music_off,
+                            color: Colors.white,
+                          ),
+                          onPressed: _toggleBackgroundMusic,
+                        ),
                       ],
                     ),
                   ),
                   
-                  // Subject title bar
+                  // Blue header with chapter title - similar to admin preview
                   Container(
-                    margin: const EdgeInsets.only(top: 15),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.lightBlue.shade300,
-                      borderRadius: BorderRadius.zero,
-                    ),
                     width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.lightBlue.shade400,
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(20),
+                        bottomRight: Radius.circular(20),
+                      ),
+                    ),
                     child: Text(
-                      actualSubjectName.toUpperCase(),
+                      actualNote.title, // Display the note title from Firebase
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        color: Colors.white,
                         fontFamily: 'Comic Sans MS',
-                        letterSpacing: 2,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 3.0,
-                            color: Colors.black.withOpacity(0.3),
-                            offset: const Offset(2, 2),
-                          ),
-                        ],
                       ),
                     ),
                   ),
                   
+                  const SizedBox(height: 10),
+                  
                   // Page content
                   Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentPage = index;
-                        });
-                      },
-                      itemCount: _pages.length,
-                      itemBuilder: (context, index) {
-                        return _buildPage(_pages[index]);
-                      },
-                    ),
+                    child: _pages.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                'No note content available',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Note ID: ${actualNote.id}\nTitle: ${actualNote.title}\nElements: ${actualNote.elements.length}',
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        )
+                      : PageView.builder(
+                          controller: _pageController,
+                          onPageChanged: (index) {
+                            print('Page changed to index: $index');
+                            setState(() {
+                              _currentPage = index;
+                            });
+                          },
+                          itemCount: _pages.length,
+                          itemBuilder: (context, index) {
+                            print('Building page at index: $index');
+                            return _buildPage(_pages[index]);
+                          },
+                        ),
                   ),
                   
                   // Navigation buttons
@@ -467,255 +598,254 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   }
 
   Widget _buildPage(List<NoteContentElement> elements) {
-    // With flashcard style, we should have exactly one element per page
-    final element = elements.isNotEmpty ? elements.first : null;
-    if (element == null) return Container();
+    print('_buildPage called with ${elements.length} elements');
     
-    // Check if this is a flashcard (has both text and image)
+    // Check if this page contains a flashcard element
+    bool hasFlashcard = elements.any((element) => element.type == 'flashcard');
+    
+    if (hasFlashcard) {
+      // Extract flashcard data
+      NoteContentElement flashcardElement = elements.firstWhere((element) => element.type == 'flashcard');
+      Map<String, dynamic> flashcardData = flashcardElement.toJson();
+      
+      // Extract required fields with better error handling
+      String text = flashcardData['description'] ?? flashcardData['title'] ?? '';
+      String imageUrl = flashcardData['imageAsset'] ?? '';
+      String audioUrl = flashcardData['audioUrl'] ?? '';
+      
+      print('Building flashcard with text: $text, image: $imageUrl, audio: $audioUrl');
+      
+      // Extract letter from the flashcard data
+      String letter = '';
+      if (flashcardData.containsKey('letter')) {
+        letter = flashcardData['letter'] as String? ?? '';
+      }
+      
+      // Build specialized flashcard UI
+      return _buildFlashcard(text, imageUrl, audioUrl, letter, widget.language);
+    }
+    
+    // Check if this is a container-based flashcard (has both text and image)
     bool isFlashcard = false;
     String textContent = '';
     String imageUrl = '';
     String audioUrl = '';
     
     // For container elements with multiple child elements
-    if (element is ContainerElement) {
+    if (elements.length == 1 && elements.first is ContainerElement) {
       // Check if it has both text and image elements
       TextElement? textElement;
       ImageElement? imageElement;
       AudioElement? audioElement;
       
-      for (var child in element.elements) {
-        if (child is TextElement) textElement = child;
-        if (child is ImageElement) imageElement = child;
-        if (child is AudioElement) audioElement = child;
+      final containerElement = elements.first as ContainerElement;
+      for (var childElement in containerElement.elements) {
+        if (childElement is TextElement) {
+          textElement = childElement;
+          textContent = childElement.content;
+        } else if (childElement is ImageElement) {
+          imageElement = childElement;
+          imageUrl = childElement.imageUrl;
+        } else if (childElement is AudioElement) {
+          audioElement = childElement;
+          audioUrl = childElement.audioUrl;
+        }
       }
       
+      // If we have both text and image, treat as a flashcard
       if (textElement != null && imageElement != null) {
         isFlashcard = true;
-        textContent = textElement.content;
-        imageUrl = imageElement.imageUrl ?? '';
-        audioUrl = audioElement?.audioUrl ?? '';
-        
-        // Use our specialized flashcard builder
-        // Schedule audio to play after the widget is built
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (audioUrl.isNotEmpty) {
-            _playAudio(audioUrl);
-          }
-        });
-        return _buildFlashcard(textContent, imageUrl, audioUrl);
+        // Generate letter from text content if needed
+        String letterToUse = '';
+        if (textContent.isNotEmpty) {
+          final firstChar = textContent.substring(0, 1).toUpperCase();
+          letterToUse = '$firstChar${firstChar.toLowerCase()}';
+        }
+        return _buildFlashcard(textContent, imageUrl, audioUrl, letterToUse, widget.language);
       }
     }
     
-    // For individual elements that aren't part of a flashcard
-    // Extract title from content if it's a text element
-    String title = '';
-    String description = '';
-    
-    if (element is TextElement) {
-      final content = element.content;
-      if (content.contains('\n')) {
-        final parts = content.split('\n');
-        title = parts.first.trim();
-        description = parts.sublist(1).join('\n').trim();
-      } else if (content.contains('. ')) {
-        final parts = content.split('. ');
-        title = parts.first.trim() + '.';
-        description = parts.sublist(1).join('. ').trim();
-      } else {
-        title = content;
-        description = '';
+    // For image and text pairs (not in a container)
+    if (elements.length == 2) {
+      TextElement? textElement;
+      ImageElement? imageElement;
+      AudioElement? audioElement;
+      
+      for (var element in elements) {
+        if (element is TextElement) {
+          textElement = element;
+          textContent = element.content;
+        } else if (element is ImageElement) {
+          imageElement = element;
+          imageUrl = element.imageUrl;
+        } else if (element is AudioElement) {
+          audioElement = element;
+          audioUrl = element.audioUrl;
+        }
       }
-    } else if (element is ImageElement) {
-      title = element.caption ?? 'Image';
-      description = '';
-    } else if (element is AudioElement) {
-      title = element.title ?? 'Audio';
-      description = 'Listen to the pronunciation';
+      
+      // If we have both text and image, treat as a flashcard
+      if (textElement != null && imageElement != null) {
+        isFlashcard = true;
+        // Generate letter from text content if needed
+        String letterToUse = '';
+        if (textContent.isNotEmpty) {
+          final firstChar = textContent.substring(0, 1).toUpperCase();
+          letterToUse = '$firstChar${firstChar.toLowerCase()}';
+        }
+        return _buildFlashcard(textContent, imageUrl, audioUrl, letterToUse, widget.language);
+      }
     }
     
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Content title if it exists
-            if (title.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: _getFontSizeForAge() + 4,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade900,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            
-            // Main content
-            _buildElement(element),
-            
-            // Content label at bottom (for images)
-            if (element is ImageElement && title.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 20),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 30),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade800,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-          ],
-        ),
+    // If we have a single image with a title, treat as a simple flashcard
+    if (elements.length == 1 && elements.first is ImageElement) {
+      final imageElement = elements.first as ImageElement;
+      imageUrl = imageElement.imageUrl;
+      textContent = imageElement.caption ?? '';
+      
+      // Extract letter from text content if needed
+      String letter = '';
+      if (textContent.isNotEmpty) {
+        final firstChar = textContent.substring(0, 1).toUpperCase();
+        letter = '$firstChar${firstChar.toLowerCase()}';
+      }
+      
+      return _buildFlashcard(textContent, imageUrl, '', letter, widget.language);
+    }
+    
+    // For regular elements, build a scrollable list view
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: ListView.builder(
+        itemCount: elements.length,
+        itemBuilder: (context, index) {
+          return _buildElement(elements[index]);
+        },
       ),
     );
   }
   
-  // Specialized flashcard builder with our new design
-  Widget _buildFlashcard(String text, String imageUrl, String audioUrl) {
-    // Get first letter of the word for the top display
-    String firstLetter = text.isNotEmpty ? text[0].toUpperCase() : '';
+  // Specialized flashcard builder with our new design - matching admin preview UI
+  Widget _buildFlashcard(String text, String imageUrl, String audioUrl, String letter, [String language = 'ms']) {
+    // If no letter is provided, use the first letter of the text
+    if (letter.isEmpty && text.isNotEmpty) {
+      final firstChar = text.substring(0, 1).toUpperCase();
+      letter = '$firstChar${firstChar.toLowerCase()}';
+    }
     
-    // Generate background color based on the first letter
-    Color backgroundColor = _getColorForLetter(firstLetter);
+    print('Building flashcard with letter: $letter, text: $text');
+
     
+    // Use white background with rounded corners like in admin module
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      height: 400,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            spreadRadius: 2,
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 8,
-            offset: const Offset(0, 3),
+            spreadRadius: 1,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Stack(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Main content
-          Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Large first letter at the top
-              Padding(
-                padding: const EdgeInsets.only(top: 20.0),
-                child: Text(
-                  firstLetter,
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        offset: const Offset(1.0, 1.0),
-                        blurRadius: 2.0,
-                        color: Colors.black.withOpacity(0.5),
-                      ),
-                    ],
-                  ),
-                ),
+          // Letter at the top (e.g., "Aa") - pink color as shown in image
+          Padding(
+            padding: const EdgeInsets.only(top: 20, bottom: 10),
+            child: Text(
+              letter,
+              style: TextStyle(
+                fontSize: 60,
+                fontWeight: FontWeight.bold,
+                color: Colors.pink,
+                fontFamily: _getFontForLanguage(language),
               ),
-              
-              // Image in center with white container
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: imageUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.contain,
-                          placeholder: (context, url) => const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                          errorWidget: (context, url, error) => const Icon(
-                            Icons.image_not_supported,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.image_not_supported,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
-                  ),
-                ),
-              ),
-              
-              // Word at the bottom
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        offset: const Offset(1.0, 1.0),
-                        blurRadius: 2.0,
-                        color: Colors.black.withOpacity(0.5),
-                      ),
-                    ],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
+            ),
           ),
           
-          // Content audio button (top-right)
+          // Image in the middle
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+              child: Center(
+                child: Builder(builder: (context) {
+                  print('Attempting to load image: $imageUrl');
+                  
+                  // Check if the asset path is valid
+                  if (imageUrl.isEmpty) {
+                    return const Center(
+                      child: Text('No image available', style: TextStyle(color: Colors.grey)),
+                    );
+                  }
+                  
+                  // Handle asset images
+                  if (imageUrl.startsWith('assets/')) {
+                    return Image.asset(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading asset image: $error');
+                        return const Icon(Icons.image_not_supported, size: 100, color: Colors.grey);
+                      },
+                    );
+                  } else {
+                    // Handle network images
+                    return CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.contain,
+                      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                      errorWidget: (context, url, error) {
+                        print('Error loading network image: $error');
+                        return const Icon(Icons.image_not_supported, size: 100, color: Colors.grey);
+                      },
+                    );
+                  }
+                }),
+              ),
+            ),
+          ),
+          
+          // Text content below the image
+          if (text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: _getFontSizeForAge(),
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                  fontFamily: _getFontForLanguage(language),
+                ),
+              ),
+            ),
+          
+          // Audio button at the bottom
           if (audioUrl.isNotEmpty)
-            Positioned(
-              top: 20.0,
-              right: 20.0,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
               child: Material(
                 color: Colors.transparent,
                 child: Ink(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
+                  decoration: const BoxDecoration(
+                    color: Colors.blue,
                     shape: BoxShape.circle,
                   ),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(20.0),
+                    borderRadius: BorderRadius.circular(25.0),
                     onTap: () => _playAudio(audioUrl),
                     child: const Padding(
-                      padding: EdgeInsets.all(8.0),
+                      padding: EdgeInsets.all(10.0),
                       child: Icon(
                         Icons.volume_up,
-                        size: 24.0,
-                        color: Colors.blue,
+                        size: 30.0,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -728,15 +858,97 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   }
 
   Widget _buildElement(NoteContentElement element) {
-    if (element is TextElement) {
+    print('Building element of type: ${element.type}');
+  
+    if (element.type == 'flashcard') {
+      // Extract flashcard data from the element
+      String text = '';
+      String imageUrl = '';
+      String audioUrl = '';
+      String extractedLetter = ''; // Renamed from 'letter' to avoid conflict
+      String language = widget.language; // Default to widget language
+      
+      // Try to extract data from the element
+      try {
+        final data = element.toJson();
+        print('Flashcard data: $data');
+        
+        // CRITICAL: Extract the letter directly from the top-level field
+        if (data.containsKey('letter')) {
+          extractedLetter = data['letter'] as String? ?? '';
+          print('Found letter in top-level field: $extractedLetter');
+        }
+        
+        // Extract image from imageAsset field
+        if (data.containsKey('imageAsset')) {
+          imageUrl = data['imageAsset'] as String? ?? '';
+          print('Found imageAsset: $imageUrl');
+        }
+        
+        // Extract age-appropriate description
+        if (data.containsKey('descriptions') && data['descriptions'] is Map) {
+          final descriptions = data['descriptions'] as Map;
+          String ageKey = widget.ageGroup.toString();
+          
+          // Try to get description for the child's age group
+          if (descriptions.containsKey(ageKey)) {
+            text = descriptions[ageKey] as String? ?? '';
+            print('Using age-appropriate description for age ${widget.ageGroup}: $text');
+          }
+          // Fallback to age 5 description if the specific age isn't available
+          else if (descriptions.containsKey('5')) {
+            text = descriptions['5'] as String? ?? '';
+            print('Using age 5 description as fallback: $text');
+          }
+          // Fallback to any available description
+          else if (descriptions.isNotEmpty) {
+            final firstKey = descriptions.keys.first.toString();
+            text = descriptions[firstKey] as String? ?? '';
+            print('Using description for age $firstKey as fallback: $text');
+          }
+        }
+        
+        // Extract language information if available in metadata
+        if (data.containsKey('metadata') && data['metadata'] is Map) {
+          final metadata = data['metadata'] as Map;
+          if (metadata.containsKey('language')) {
+            language = metadata['language'] as String? ?? widget.language;
+            print('Found language in metadata: $language');
+          }
+        }
+        
+        // If no description found, try using title
+        if (text.isEmpty && data.containsKey('title')) {
+          text = data['title'] as String? ?? '';
+          print('Using title as fallback: $text');
+        }
+        
+        // Generate letter from text content if not already extracted
+        String textContent = text;
+        if (extractedLetter.isEmpty && textContent.isNotEmpty) {
+          final firstChar = textContent.substring(0, 1).toUpperCase();
+          extractedLetter = '$firstChar${firstChar.toLowerCase()}';
+        }  
+        print('Final letter to use: $extractedLetter');
+        
+        print('Extracted flashcard - text: $text, imageUrl: $imageUrl, letter: $extractedLetter, language: $language');
+        return _buildFlashcard(text, imageUrl, audioUrl, extractedLetter, language);
+      } catch (e) {
+        print('Error processing flashcard: $e');
+      }
+    } else if (element is TextElement) {
       return _buildTextElement(element);
     } else if (element is ImageElement) {
       return _buildImageElement(element);
     } else if (element is AudioElement) {
       return _buildAudioElement(element);
-    } else {
-      return const SizedBox.shrink();
     }
+    
+    // Fallback for unknown element types
+    print('Unknown element type: ${element.type}');
+    return Center(
+      child: Text('Unsupported element type: ${element.type}'),
+    );
   }
 
   Widget _buildTextElement(TextElement element) {
@@ -848,9 +1060,13 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
     if (url.isEmpty) return;
     
     try {
-      await _flashcardAudioPlayer.stop();
-      await _flashcardAudioPlayer.setUrl(url);
-      await _flashcardAudioPlayer.play();
+      if (_audioPlayer == null) {
+        _audioPlayer = AudioPlayer();
+      }
+      
+      await _audioPlayer!.stop();
+      await _audioPlayer!.setUrl(url);
+      await _audioPlayer!.play();
     } catch (e) {
       debugPrint('Error playing audio: $e');
     }
@@ -859,14 +1075,20 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   // Toggle background music
   Future<void> _toggleBackgroundMusic() async {
     try {
-      if (_isBgMusicPlaying) {
-        await _bgMusicPlayer.pause();
+      if (_backgroundMusicPlayer == null) {
+        _backgroundMusicPlayer = AudioPlayer();
+        _isBackgroundMusicPlaying = false;
+        return;
+      }
+      
+      if (_isBackgroundMusicPlaying) {
+        await _backgroundMusicPlayer!.pause();
       } else {
-        await _bgMusicPlayer.play();
+        await _backgroundMusicPlayer!.play();
       }
       
       setState(() {
-        _isBgMusicPlaying = !_isBgMusicPlaying;
+        _isBackgroundMusicPlaying = !_isBackgroundMusicPlaying;
       });
     } catch (e) {
       debugPrint('Error toggling background music: $e');
@@ -954,16 +1176,17 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
             Row(
               children: [
                 StreamBuilder<PlayerState>(
-                  stream: _audioPlayers[element.id]!.playerStateStream,
+                  stream: _audioPlayers[element.id]?.playerStateStream,
                   builder: (context, snapshot) {
                     final playerState = snapshot.data;
                     final playing = playerState?.playing;
+                    final currentPlayingId = _currentlyPlayingAudioId;
 
                     // If audio is currently playing, show stop button
                     if (playing == true) {
                       return GestureDetector(
                         onTap: () {
-                          _audioPlayers[element.id]!.pause();
+                          _audioPlayers[element.id]?.pause();
                           setState(() {
                             _currentlyPlayingAudioId = null;
                           });
@@ -984,17 +1207,18 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                       );
                     }
 
-                    // Show play button
+                    // Otherwise show play button
                     return GestureDetector(
                       onTap: () {
                         // Stop any currently playing audio
-                        if (_currentlyPlayingAudioId != null &&
-                            _currentlyPlayingAudioId != element.id) {
-                          _audioPlayers[_currentlyPlayingAudioId]?.pause();
+                        if (currentPlayingId != null &&
+                            currentPlayingId != element.id &&
+                            _audioPlayers.containsKey(currentPlayingId)) {
+                          _audioPlayers[currentPlayingId]?.pause();
                         }
 
                         // Play this audio
-                        _audioPlayers[element.id]!.play();
+                        _audioPlayers[element.id]?.play();
                         setState(() {
                           _currentlyPlayingAudioId = element.id;
                         });
@@ -1043,10 +1267,10 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
             ),
             // Audio progress bar
             StreamBuilder<Duration?>(
-              stream: _audioPlayers[element.id]!.positionStream,
+              stream: _audioPlayers[element.id]?.positionStream,
               builder: (context, snapshot) {
                 final position = snapshot.data ?? Duration.zero;
-                final duration = _audioPlayers[element.id]!.duration ?? Duration.zero;
+                final duration = _audioPlayers[element.id]?.duration ?? Duration.zero;
 
                 if (duration == Duration.zero) {
                   return const SizedBox.shrink();
@@ -1092,16 +1316,19 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
     );
   }
 
+  // Format duration for display
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    return "$minutes:$seconds";
   }
 
   double _getFontSizeForAge() {
     // Determine font size based on the child's age
-    switch (_childAge) {
+    int age = widget.ageGroup;
+    
+    switch (age) {
       case 4:
         return 24.0; // Larger font for younger children
       case 5:
@@ -1110,6 +1337,21 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
         return 18.0; // Smaller font for older children
       default:
         return 20.0; // Default size
+    }
+  }
+  
+  // Helper method to get the appropriate font family based on language
+  String _getFontForLanguage(String language) {
+    switch (language.toLowerCase()) {
+      case 'ar': // Arabic
+        return 'Amiri'; // Arabic font
+      case 'jw': // Jawi
+        return 'Scheherazade'; // Font suitable for Jawi
+      case 'zh': // Chinese
+        return 'Noto Sans SC';
+      case 'ms': // Malay
+      default:
+        return 'Roboto'; // Default font for Latin scripts
     }
   }
 }

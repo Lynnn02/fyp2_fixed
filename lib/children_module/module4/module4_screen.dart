@@ -19,42 +19,13 @@ class Module4Screen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.red),
-            tooltip: 'Logout',
-            onPressed: () async {
-              // Show confirmation dialog
-              final shouldLogout = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              ) ?? false;
-              
-              if (shouldLogout) {
-                await FirebaseAuth.instance.signOut();
-                // Navigate to login screen and remove all previous routes
-                Navigator.pushNamedAndRemoveUntil(
-                  context, 
-                  '/login', 
-                  (route) => false,
-                );
-              }
-            },
-          ),
-        ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: 'Back',
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
       ),
       extendBodyBehindAppBar: true,
       body: Stack(

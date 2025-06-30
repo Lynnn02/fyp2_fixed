@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/subject.dart';
 import '../../services/content_service.dart';
 import '../../models/note_content.dart';
+import 'note_viewer_screen.dart';
 
 class LearningSelectionScreen extends StatefulWidget {
   final Chapter chapter;
@@ -48,7 +49,34 @@ class _LearningSelectionScreenState extends State<LearningSelectionScreen> {
         actualSubjectId = args['subjectId'] as String;
       }
       
+      print('Loading note for chapter: ${actualChapter.id} in subject: $actualSubjectId');
+      print('Initial chapter data: noteId=${actualChapter.noteId}, noteTitle=${actualChapter.noteTitle}');
+      
+      // Refresh the subject data to get the latest chapter information
+      try {
+        final refreshedSubject = await _contentService.getSubjectById(actualSubjectId);
+        if (refreshedSubject != null) {
+          // Find the updated chapter
+          final refreshedChapter = refreshedSubject.chapters.firstWhere(
+            (c) => c.id == actualChapter.id,
+            orElse: () => actualChapter,
+          );
+          
+          // Update our chapter reference with the latest data
+          actualChapter = refreshedChapter;
+          print('Refreshed chapter data: noteId=${actualChapter.noteId}, noteTitle=${actualChapter.noteTitle}');
+        }
+      } catch (refreshError) {
+        print('Error refreshing subject data: $refreshError');
+        // Continue with the original chapter data
+      }
+      
       final note = await _contentService.getNoteForChapter(actualSubjectId, actualChapter.id);
+      print('Note loaded: ${note != null ? 'Yes' : 'No'}');
+      if (note != null) {
+        print('Note title: ${note.title}, elements: ${note.elements.length}');
+      }
+      
       setState(() {
         _note = note;
         _isLoading = false;
@@ -80,6 +108,14 @@ class _LearningSelectionScreenState extends State<LearningSelectionScreen> {
         actualUserName = args['userName'] as String;
       }
     }
+    
+    print('BUILD: Note loaded: ${_note != null ? 'Yes' : 'No'}');
+    if (_note != null) {
+      print('BUILD: Note ID: ${_note!.id}, title: ${_note!.title}, elements: ${_note!.elements.length}');
+    }
+    print('BUILD: Chapter noteId: ${actualChapter.noteId}');
+    print('BUILD: isLoading: $_isLoading');
+    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -126,22 +162,41 @@ class _LearningSelectionScreenState extends State<LearningSelectionScreen> {
                   )
                 : ElevatedButton(
                   onPressed: _note != null
-                      ? () {
-                          Navigator.pushNamed(
-                            context,
-                            '/noteViewer',
-                            arguments: {
-                              'note': _note,
-                              'chapterName': actualChapter.name,
-                              'userId': actualUserId,
-                              'userName': actualUserName,
-                              'subjectId': actualSubjectId,
-                              'chapterId': actualChapter.id,
-                              'subjectName': actualChapter.name,
-                            },
-                          );
-                        }
-                      : null,
+                    ? () {
+                        print('Navigating to note viewer with note: ${_note!.id}, title: ${_note!.title}');
+                        // Try using push with MaterialPageRoute instead of pushNamed
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => NoteViewerScreen(
+                              note: _note!,
+                              chapterName: actualChapter.name,
+                              userId: actualUserId,
+                              userName: actualUserName,
+                              subjectId: actualSubjectId,
+                              chapterId: actualChapter.id,
+                              subjectName: actualChapter.name,
+                              ageGroup: 5, // Set a default age group for children
+                            ),
+                          ),
+                        );
+                        // Fallback to pushNamed if the above doesn't work
+                        // Navigator.pushNamed(
+                        //   context,
+                        //   '/noteViewer',
+                        //   arguments: {
+                        //     'note': _note,
+                        //     'chapterName': actualChapter.name,
+                        //     'userId': actualUserId,
+                        //     'userName': actualUserName,
+                        //     'subjectId': actualSubjectId,
+                        //     'chapterId': actualChapter.id,
+                        //     'subjectName': actualChapter.name,
+                        //     'ageGroup': 5, // Set a default age group for children
+                        //   },
+                        // );
+                      }
+                    : null,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(200, 50),
                     textStyle: const TextStyle(fontSize: 20),

@@ -310,6 +310,20 @@ class ContentService {
       return subjects;
     });
   }
+  
+  // Get a single subject by ID
+  Future<Subject?> getSubjectById(String subjectId) async {
+    try {
+      final doc = await _firestore.collection('subjects').doc(subjectId).get();
+      if (doc.exists) {
+        return Subject.fromFirestore(doc);
+      }
+      return null;
+    } catch (e) {
+      print('Error getting subject by ID: $e');
+      return null;
+    }
+  }
 
   Future<void> addSubject(String name, int moduleId) async {
     await _firestore.collection('subjects').add({
@@ -583,19 +597,57 @@ class ContentService {
   // Get notes for a chapter
   Future<Note?> getNoteForChapter(String subjectId, String chapterId) async {
     try {
+      print('Getting note for chapter: $subjectId, $chapterId');
+      
+      // First get the chapter to check if it has a noteId
       final subject = await _firestore.collection('subjects').doc(subjectId).get();
-      if (!subject.exists) return null;
+      if (!subject.exists) {
+        print('Subject does not exist: $subjectId');
+        return null;
+      }
 
       final chapters = (subject.data()?['chapters'] as List<dynamic>? ?? []);
+      print('Found ${chapters.length} chapters in subject');
+      
       final chapter = chapters.firstWhere(
         (c) => c['id'] == chapterId,
         orElse: () => null,
       );
       
-      if (chapter == null || !chapter.containsKey('note')) return null;
+      if (chapter == null) {
+        print('Chapter not found: $chapterId');
+        return null;
+      }
       
-      // Convert JSON to Note object
-      return Note.fromJson(chapter['note']);
+      print('Chapter data: ${chapter.keys.toList()}');
+      
+      // Check for noteId first (new approach)
+      if (chapter['noteId'] != null) {
+        print('Found noteId: ${chapter['noteId']}');
+        // Get the note from the notes collection using noteId
+        final noteDoc = await _firestore.collection('notes').doc(chapter['noteId']).get();
+        if (noteDoc.exists) {
+          print('Note document exists');
+          // Use the fromFirestore factory to create a Note object
+          return Note.fromFirestore(noteDoc);
+        } else {
+          print('Note document does not exist for id: ${chapter['noteId']}');
+        }
+      } else {
+        print('No noteId found in chapter');
+      }
+      
+      // Fallback to the old approach (for backward compatibility)
+      if (chapter.containsKey('note')) {
+        print('Found legacy note field in chapter');
+        // Convert JSON to Note object
+        return Note.fromJson(chapter['note']);
+      } else {
+        print('No legacy note field found in chapter');
+      }
+      
+      print('No note found for chapter');
+      return null;
     } catch (e) {
       print('Error getting note for chapter: $e');
       return null;
@@ -613,14 +665,30 @@ class ContentService {
       
       if (index == -1) return;
       
-      // Remove note from chapter
+      // Check for noteId first (new approach)
+      String? noteIdToDelete;
+      if (chapters[index].containsKey('noteId')) {
+        noteIdToDelete = chapters[index]['noteId'] as String?;
+        
+        // Remove note fields from chapter
+        chapters[index].remove('noteId');
+        chapters[index].remove('noteTitle');
+        chapters[index].remove('noteLastUpdated');
+      }
+      
+      // For backward compatibility, also remove the old note field if it exists
       if (chapters[index].containsKey('note')) {
         chapters[index].remove('note');
-        
-        // Update subject document
-        await _firestore.collection('subjects').doc(subjectId).update({
-          'chapters': chapters,
-        });
+      }
+      
+      // Update subject document
+      await _firestore.collection('subjects').doc(subjectId).update({
+        'chapters': chapters,
+      });
+      
+      // Delete the note document from the notes collection if we have an ID
+      if (noteIdToDelete != null) {
+        await _firestore.collection('notes').doc(noteIdToDelete).delete();
       }
     } catch (e) {
       print('Error deleting note from chapter: $e');

@@ -46,6 +46,9 @@ class Chapter {
   final Note? richNote; // New field for rich multimedia notes
   final String? gameId; // ID of the published game for this chapter
   final String? gameType; // Type of the published game
+  final String? noteId; // ID of the published note for this chapter
+  final String? noteTitle; // Title of the published note
+  final Timestamp? noteLastUpdated; // When the note was last updated
 
   Chapter({
     required this.id,
@@ -57,6 +60,9 @@ class Chapter {
     this.richNote,
     this.gameId,
     this.gameType,
+    this.noteId,
+    this.noteTitle,
+    this.noteLastUpdated,
   });
 
   factory Chapter.fromJson(Map<String, dynamic> json) {
@@ -70,18 +76,26 @@ class Chapter {
       richNote: json['richNote'] != null ? Note.fromJson(json['richNote'] as Map<String, dynamic>) : null,
       gameId: json['gameId'] as String?,
       gameType: json['gameType'] as String?,
+      noteId: json['noteId'] as String?,
+      noteTitle: json['noteTitle'] as String?,
+      noteLastUpdated: json['noteLastUpdated'] as Timestamp?,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'notes': notes,
-    'videoUrl': videoUrl,
-    'videoFilePath': videoFilePath,
-    'createdAt': createdAt,
-    'richNote': richNote?.toJson(),
-    'gameId': gameId,
-    'gameType': gameType,
-  };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'notes': notes,
+      'videoUrl': videoUrl,
+      'videoFilePath': videoFilePath,
+      'createdAt': createdAt,
+      'richNote': richNote?.toJson(),
+      'gameId': gameId,
+      'gameType': gameType,
+      'noteId': noteId,
+      'noteTitle': noteTitle,
+      'noteLastUpdated': noteLastUpdated,
+    };
+  }
 }
