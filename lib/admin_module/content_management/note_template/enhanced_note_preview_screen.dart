@@ -2,15 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../models/note_content.dart';
 import '../../../models/container_element.dart';
 import '../../../models/subject.dart';
+import '../../../models/chapter.dart';
+import 'widgets/note_completion_dialog.dart';
 import '../../../services/flashcard_service.dart';
 import '../../../services/flashcard_media_service.dart';
-import '../../../services/gemini_notes_service.dart';
+import 'flashcard_template_generator_complete.dart';
 import '../../../utils/language_detector.dart';
+import '../../../models/flashcard_element.dart' as custom_flashcard;
 
 class EnhancedNotePreviewScreen extends StatefulWidget {
   final dynamic subject;
@@ -34,19 +38,23 @@ class EnhancedNotePreviewScreen extends StatefulWidget {
 
 class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   // Background music player
-  late AudioPlayer _bgMusicPlayer;
+  AudioPlayer? _bgMusicPlayer;
   bool _isMusicPlaying = false;
+  bool _bgMusicAvailable = false;
   
   bool _isLoading = true;
   bool _hasError = false;
   String _errorMessage = '';
   String _noteTitle = '';
+  String _noteDescription = '';
   List<NoteContentElement> _noteElements = [];
+  
+  // Age group for flashcard descriptions
   late int _selectedAgeGroup;
   
   // Initialize the flashcard service
   final FlashcardService _flashcardService = FlashcardService();
-  final GeminiNotesService _geminiService = GeminiNotesService();
+  // final GeminiNotesService _geminiService = GeminiNotesService(); // Remove Gemini dependency
   
   // Page view controller
   late PageController _pageController;
@@ -58,48 +66,108 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   // Add Amiri font to pubspec.yaml if not already added
   String _fontFamily = 'Roboto';
   
+  // Variables for completion tracking
+  DateTime _startTime = DateTime.now();
+  int _studyMinutes = 0;
+  bool _showingCompletionDialog = false;
+  
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _bgMusicPlayer = AudioPlayer();
+    _startTime = DateTime.now(); // Record start time for completion tracking
+    _selectedAgeGroup = widget.age;
+    
+    // Initialize audio player safely
+    try {
+      _bgMusicPlayer = AudioPlayer();
+      _bgMusicAvailable = true;
+    } catch (e) {
+      print('Could not initialize audio player: $e');
+      _bgMusicAvailable = false;
+    }
+    
     _loadNoteContent();
     
-    // Initialize background music
-    _initBackgroundMusic();
+    // Initialize background music only if audio player is available
+    if (_bgMusicAvailable) {
+      _initBackgroundMusic();
+    }
     
     // Debug print for language and font
     print('Language: ${widget.language}, Font: $_fontFamily, RTL: $_isRTL');
+    print('Selected age group: $_selectedAgeGroup');
   }
 
   // Initialize background music
   Future<void> _initBackgroundMusic() async {
-    try {
-      await _bgMusicPlayer.setAsset('assets/bg_music.mp3');
-      await _bgMusicPlayer.setLoopMode(LoopMode.all); // Loop continuously
-      await _bgMusicPlayer.play();
+    if (_bgMusicPlayer == null || !_bgMusicAvailable) {
       setState(() {
-        _isMusicPlaying = true;
+        _isMusicPlaying = false;
       });
+      return;
+    }
+    
+    try {
+      // Check if the asset exists first
+      bool assetExists = true;
+      try {
+        await _bgMusicPlayer!.setAsset('assets/bg_music.mp3');
+      } catch (e) {
+        print('Background music asset not found: $e');
+        assetExists = false;
+      }
+      
+      if (assetExists) {
+        await _bgMusicPlayer!.setLoopMode(LoopMode.all); // Loop continuously
+        await _bgMusicPlayer!.play();
+        setState(() {
+          _isMusicPlaying = true;
+        });
+      } else {
+        // Silently fail if the asset doesn't exist
+        setState(() {
+          _isMusicPlaying = false;
+        });
+      }
     } catch (e) {
       print('Error playing background music: $e');
+      // Make sure we set the state to not playing
+      setState(() {
+        _isMusicPlaying = false;
+      });
     }
   }
   
   // Toggle background music
   void _toggleBackgroundMusic() {
-    if (_isMusicPlaying) {
-      _bgMusicPlayer.pause();
-    } else {
-      _bgMusicPlayer.play();
+    if (_bgMusicPlayer == null || !_bgMusicAvailable) {
+      setState(() {
+        _isMusicPlaying = false;
+      });
+      return;
     }
-    setState(() {
-      _isMusicPlaying = !_isMusicPlaying;
-    });
+    
+    try {
+      if (_isMusicPlaying) {
+        _bgMusicPlayer!.pause();
+      } else {
+        _bgMusicPlayer!.play();
+      }
+      setState(() {
+        _isMusicPlaying = !_isMusicPlaying;
+      });
+    } catch (e) {
+      print('Error toggling background music: $e');
+      // If there's an error, assume music is not playing
+      setState(() {
+        _isMusicPlaying = false;
+      });
+    }
   }
   
-  // Load note data using the flashcard service
-  Future<void> _loadNoteData() async {
+  // Load note content
+  Future<void> _loadNoteContent() async {
     setState(() {
       _isLoading = true;
     });
@@ -129,13 +197,32 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
       
       _noteTitle = '$subjectName: $chapterName';
       
-      // Use the flashcard service to generate content
-      _noteElements = await _flashcardService.generateFlashcards(
-        subject: widget.subject,
-        chapter: widget.chapter,
+      // Generate flashcard elements using our static generator
+      String subjectStr = subjectName;
+      String chapterStr = chapterName;
+      
+      // Generate flashcards using the template generator
+      final customFlashcardElements = FlashcardTemplateGenerator.generateFlashcardElements(
+        subject: subjectStr,
+        chapter: chapterStr,
         age: widget.age,
         language: widget.language,
       );
+      
+      // Convert custom FlashcardElement objects to NoteContentElement objects
+      _noteElements = customFlashcardElements.map<NoteContentElement>((element) => 
+        FlashcardElement(
+          id: element.id,
+          position: element.position,
+          createdAt: element.createdAt,
+          title: element.title,
+          letter: element.letter,
+          imageAsset: element.imageAsset,
+          descriptions: element.descriptions,
+          cardColor: element.cardColor,
+          metadata: element.metadata,
+        )
+      ).toList();
       
       // Set the selected age group from widget
       _selectedAgeGroup = widget.age;
@@ -152,98 +239,59 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
     }
   }
   
+  // Show completion dialog with fixed score of 100 and 5 stars
+  void _showCompletionDialog() {
+    setState(() {
+      _showingCompletionDialog = true;
+    });
+    
+    // Calculate study time in minutes
+    final now = DateTime.now();
+    final duration = now.difference(_startTime);
+    _studyMinutes = (duration.inSeconds / 60).ceil(); // Round up to nearest minute
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => NoteCompletionDialog(
+        points: 100, // Fixed score of 100
+        stars: 5,    // Fixed 5 stars
+        subject: widget.subject.name,
+        minutes: _studyMinutes,
+        onTryAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentPage = 0;
+            _pageController.jumpToPage(0);
+            _showingCompletionDialog = false;
+          });
+        },
+        onContinue: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _showingCompletionDialog = false;
+          });
+        },
+      ),
+    );
+  }
+  
   @override
   void dispose() {
+    // Safely dispose the audio player if it exists
+    if (_backgroundMusicPlayer != null) {
+      try {
+        _backgroundMusicPlayer!.dispose();
+      } catch (e) {
+        print('Error disposing audio player: $e');
+      }
+    }
+    
     _pageController.dispose();
-    _bgMusicPlayer.dispose();
     super.dispose();
   }
   
-  Future<void> _loadNoteContent() async {
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-      _errorMessage = '';
-    });
 
-    try {
-      // Get subject and chapter names - handle different types properly
-      String subjectName;
-      if (widget.subject is String) {
-        subjectName = widget.subject as String;
-      } else if (widget.subject != null) {
-        // Access the name property safely using toString() to avoid type errors
-        subjectName = widget.subject.toString();
-        // Try to extract just the name if it's an object with a name property
-        if (subjectName.contains('name:')) {
-          subjectName = subjectName.split('name:').last.trim().split(',').first.trim();
-        }
-      } else {
-        subjectName = 'General';
-      }
-      
-      // Do the same for chapter
-      String chapterName;
-      if (widget.chapter is String) {
-        chapterName = widget.chapter as String;
-      } else if (widget.chapter != null) {
-        chapterName = widget.chapter.toString();
-        if (chapterName.contains('name:')) {
-          chapterName = chapterName.split('name:').last.trim().split(',').first.trim();
-        }
-      } else {
-        chapterName = 'Introduction';
-      }
-      
-      // Detect language based on the language parameter
-      _isRTL = widget.language == 'ar' || 
-               widget.language == 'he' || 
-               widget.language == 'jawi' || 
-               LanguageDetector.isRTL(subjectName) || 
-               LanguageDetector.isRTL(chapterName);
-      
-      _detectedLanguage = widget.language;
-      
-      // Set appropriate font family for the language
-      if (widget.language == 'jawi') {
-        _fontFamily = 'Amiri'; // Arabic font that works well for Jawi
-        _isRTL = true; // Jawi is written right-to-left
-      } else {
-        _fontFamily = LanguageDetector.getFontFamilyForLanguage(widget.language);
-      }
-      
-      // Try to generate content using GeminiService
-      List<NoteContentElement> elements = [];
-      
-      try {
-        // Generate flashcard content
-        elements = await _geminiService.generateFlashcardContent({
-          'subject': subjectName,
-          'chapter': chapterName,
-          'age': widget.age,
-          'style': widget.templateName,
-          'language': widget.language
-        });
-      } catch (serviceError) {
-        print('Error generating content with service: $serviceError');
-        // Fall back to sample content if service fails
-        elements = _createSampleElements();
-      }
-      
-      // Store subject and chapter for display in flashcard title
-      setState(() {
-        _noteTitle = '$subjectName: $chapterName';
-        _noteElements = elements;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _hasError = true;
-        _errorMessage = 'Error: $e';
-        _isLoading = false;
-      });
-    }
-  }
   
   List<NoteContentElement> _createSampleElements() {
     final timestamp = Timestamp.now();
@@ -375,6 +423,149 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
     // No implementation needed
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Could not play audio: Failed to load URL')),
+    );
+  }
+  
+  // Helper method to check if an asset exists
+  Future<bool> _checkAssetExists(String assetPath) async {
+    try {
+      // Try to load the asset as a ByteData
+      await DefaultAssetBundle.of(context).load(assetPath);
+      print('Asset exists: $assetPath');
+      return true;
+    } catch (e) {
+      print('Asset does not exist: $assetPath - $e');
+      return false;
+    }
+  }
+  
+  // Build a single flashcard
+  Widget _buildFlashcard(FlashcardElement flashcard) {
+    
+    return GestureDetector(
+      onTap: () {
+        // Card tap action (audio removed)
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Letter at the top (e.g., "Mm")
+            Container(
+              padding: const EdgeInsets.all(16),
+              alignment: Alignment.center,
+              child: Text(
+                flashcard.letter,
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.pink,
+                  fontFamily: _fontFamily,
+                ),
+              ),
+            ),
+            
+            // Image in the middle
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Builder(builder: (context) {
+                  // Debug print the image asset path
+                  print('Attempting to load image: ${flashcard.imageAsset}');
+                  
+                  // Check if the asset path is valid
+                  if (flashcard.imageAsset.isEmpty) {
+                    return const Center(
+                      child: Text('No image path specified', style: TextStyle(color: Colors.red)),
+                    );
+                  }
+                  
+                  // Try to load the specific image first
+                  return FutureBuilder<bool>(
+                    // Check if the asset exists
+                    future: _checkAssetExists(flashcard.imageAsset),
+                    builder: (context, snapshot) {
+                      // If asset exists, use it
+                      if (snapshot.hasData && snapshot.data == true) {
+                        return Image.asset(
+                          flashcard.imageAsset,
+                          fit: BoxFit.contain,
+                        );
+                      } 
+                      // If asset doesn't exist or check failed, try the fallback
+                      else {
+                        // Try to use a generic placeholder based on subject
+                        final subjectFolder = flashcard.metadata?['subject']?.toString().toLowerCase() ?? 'malay';
+                        final fallbackPath = 'assets/logo.png';
+                        
+                        print('Using fallback image: $fallbackPath for ${flashcard.imageAsset}');
+                        
+                        return Image.asset(
+                          fallbackPath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            print('Error loading fallback image: $fallbackPath - $error');
+                            // If even fallback fails, show error UI
+                            return Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  color: Colors.grey[200],
+                                  padding: const EdgeInsets.all(16),
+                                  child: Center(
+                                    child: Icon(Icons.image_not_supported, size: 64, color: Colors.grey[400]),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Title: ${flashcard.title}',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                                Text(
+                                  'Path: ${flashcard.imageAsset}',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                    },
+                  );
+                }),
+              ),
+            ),
+            
+            // Description at the bottom
+            Container(
+              padding: const EdgeInsets.all(16),
+              alignment: Alignment.center,
+              child: Text(
+                flashcard.getDescription(_selectedAgeGroup),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                  fontFamily: _fontFamily,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
   
@@ -519,6 +710,7 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
       List<ImageElement> imageElements = [];
       List<TextElement> textElements = [];
       List<AudioElement> audioElements = [];
+      List<FlashcardElement> flashcardElements = [];
       
       for (var element in _noteElements) {
         if (element is ImageElement) {
@@ -527,33 +719,44 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
           textElements.add(element);
         } else if (element is AudioElement) {
           audioElements.add(element);
+        } else if (element is FlashcardElement) {
+          flashcardElements.add(element);
         }
       }
       
       // Clear existing pages
       pages.clear();
       
-      // Match images with their corresponding text by position
-      // This ensures each flashcard has one concept (image + related text)
-      int maxElements = imageElements.length > textElements.length ? 
-                        imageElements.length : textElements.length;
-      
-      for (int i = 0; i < maxElements; i++) {
-        List<dynamic> flashcard = [];
-        
-        // Add image if available for this position
-        if (i < imageElements.length) {
-          flashcard.add(imageElements[i]);
+      // If we have FlashcardElement objects, create one page per flashcard
+      if (flashcardElements.isNotEmpty) {
+        // Each flashcard gets its own page
+        for (var flashcard in flashcardElements) {
+          pages.add([flashcard]);
         }
+      } else {
+        // Fall back to the original logic for other element types
+        // Match images with their corresponding text by position
+        // This ensures each flashcard has one concept (image + related text)
+        int maxElements = imageElements.length > textElements.length ? 
+                          imageElements.length : textElements.length;
         
-        // Add text if available for this position
-        if (i < textElements.length) {
-          flashcard.add(textElements[i]);
-        }
-        
-        // Only add non-empty flashcards
-        if (flashcard.isNotEmpty) {
-          pages.add(flashcard);
+        for (int i = 0; i < maxElements; i++) {
+          List<dynamic> flashcard = [];
+          
+          // Add image if available for this position
+          if (i < imageElements.length) {
+            flashcard.add(imageElements[i]);
+          }
+          
+          // Add text if available for this position
+          if (i < textElements.length) {
+            flashcard.add(textElements[i]);
+          }
+          
+          // Only add non-empty flashcards
+          if (flashcard.isNotEmpty) {
+            pages.add(flashcard);
+          }
         }
       }
       
@@ -682,7 +885,12 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
                             curve: Curves.easeInOut,
                           );
                         }
-                      : null,
+                      : () {
+                          // Show completion dialog when reaching the last page
+                          if (!_showingCompletionDialog) {
+                            _showCompletionDialog();
+                          }
+                        },
                   ),
                   
                   // Background music toggle button
@@ -709,14 +917,29 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   Widget _buildFlashcardPage(List<dynamic> elements) {
     // Debug the elements on this page
     print('Building flashcard with ${elements.length} elements');
+    
+    // Check if we have a FlashcardElement
+    FlashcardElement? flashcardElement;
+    
     for (var element in elements) {
-      if (element is ImageElement) {
+      if (element is FlashcardElement) {
+        flashcardElement = element;
+        print('Flashcard: ${flashcardElement.title} with letter ${flashcardElement.letter}');
+        // Once we find a flashcard element, break the loop
+        break;
+      } else if (element is ImageElement) {
         print('Image: ${element.imageUrl.substring(0, math.min(30, element.imageUrl.length))}...');
       } else if (element is TextElement) {
         print('Text: ${element.content.substring(0, math.min(30, element.content.length))}...');
       }
     }
     
+    // If we found a flashcard element, build it directly
+    if (flashcardElement != null) {
+      return _buildFlashcard(flashcardElement);
+    }
+    
+    // Otherwise, fall back to the original logic for other element types
     // Find image and text elements in this page
     ImageElement? imageElement;
     TextElement? textElement;
@@ -739,6 +962,7 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
       }
     }
     
+    // We already handled FlashcardElement above, so if we get here, we're dealing with other element types
     // Prepare bottom label for age 4-5
     Widget? bottomLabel;
     if (widget.age <= 5) {
@@ -1036,85 +1260,6 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
     return '$twoDigitMinutes:$twoDigitSeconds';
   }
   
-  // Helper method to build a kid-friendly element
-  Widget _buildKidFriendlyElement(NoteContentElement element) {
-    if (element is TextElement) {
-      return Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Text(
-          element.content,
-          style: TextStyle(
-            fontSize: element.fontSize ?? 16.0,
-            fontWeight: element.isBold ? FontWeight.bold : FontWeight.normal,
-            fontStyle: element.isItalic ? FontStyle.italic : FontStyle.normal,
-            fontFamily: _fontFamily,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      );
-    } else if (element is ImageElement) {
-      return Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.network(
-                element.imageUrl,
-                fit: BoxFit.cover,
-                width: 300,
-                height: 200,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 300,
-                    height: 200,
-                    color: Colors.grey[300],
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
-                    ),
-                  );
-                },
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    width: 300,
-                    height: 200,
-                    color: Colors.grey[200],
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            if (element.caption != null && element.caption!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  element.caption!,
-                  style: TextStyle(fontFamily: _fontFamily),
-                ),
-              ),
-          ],
-        ),
-      );
-    } else if (element is AudioElement) {
-      // We're not showing audio elements anymore since we're using background music
-      return const SizedBox.shrink();
-    } else {
-      return const SizedBox.shrink();
-    }
-  }
-  
-  // The _buildCircularButton method is already defined above
-  
-  // The _formatDuration method is already defined above
-  
   // Method to publish the note
   void _publishNote() async {
     try {
@@ -1139,12 +1284,27 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
         'updatedAt': Timestamp.now(),
         'isPublished': true,
         'elements': _noteElements.map((e) => e.toJson()).toList(),
+        'score': 100, // Fixed score of 100 for completion tracking
+        'stars': 5,   // Fixed 5 stars for progress tracking
+        'type': 'note', // Specify that this is a note for the child module
+        'completionStatus': 'completed', // Mark as completed
       };
       
-      // Save to Firestore
+      // Get the reference to the subject document
+      DocumentReference subjectRef = FirebaseFirestore.instance
+          .collection('subjects')
+          .doc(widget.subject.id);
+      
+      // Save to Firestore in the notes collection for child module access
       await FirebaseFirestore.instance
           .collection('notes')
           .add(noteDoc);
+      
+      // Update the subject document to include this note
+      await subjectRef.update({
+        'hasPublishedNote': true,
+        'noteLastUpdated': Timestamp.now(),
+      });
       
       // Close loading dialog
       Navigator.of(context).pop();
@@ -1172,4 +1332,96 @@ class _EnhancedNotePreviewScreenState extends State<EnhancedNotePreviewScreen> {
   
   // We've removed the audio element UI since we're using background music instead
   // of individual audio elements for each flashcard
+  
+  // Helper method to build a kid-friendly element
+  Widget _buildKidFriendlyElement(NoteContentElement element) {
+    if (element is TextElement) {
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Text(
+          element.content,
+          style: TextStyle(
+            fontSize: element.fontSize ?? 16.0,
+            fontWeight: element.isBold ? FontWeight.bold : FontWeight.normal,
+            fontStyle: element.isItalic ? FontStyle.italic : FontStyle.normal,
+            fontFamily: _fontFamily,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    } else if (element is ImageElement) {
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12.0),
+              child: Container(
+                constraints: const BoxConstraints(
+                  maxHeight: 200,
+                ),
+                child: element.imageUrl.startsWith('http')
+                    ? Image.network(
+                        element.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 200,
+                            color: Colors.grey[300],
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.error, color: Colors.red),
+                                  const SizedBox(height: 8),
+                                  Text('Failed to load image: ${error.toString().substring(0, math.min(50, error.toString().length))}'),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : Image.asset(
+                        element.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 200,
+                            color: Colors.grey[300],
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.error, color: Colors.red),
+                                  const SizedBox(height: 8),
+                                  Text('Failed to load image: ${element.imageUrl}'),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+            if (element.caption != null && element.caption!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  element.caption!,
+                  style: TextStyle(fontFamily: _fontFamily),
+                ),
+              ),
+          ],
+        ),
+      );
+    } else if (element is AudioElement) {
+      // We're not showing audio elements anymore since we're using background music
+      return const SizedBox.shrink();
+    } else if (element is FlashcardElement) {
+      // Use the dedicated flashcard builder for FlashcardElement objects
+      return _buildFlashcard(element);
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
 }

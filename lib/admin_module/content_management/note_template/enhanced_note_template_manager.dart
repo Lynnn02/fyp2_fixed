@@ -3,9 +3,10 @@ import 'dart:math' as math;
 import 'dart:convert';
 import '../../../models/note_content.dart';
 import '../../../services/gemini_notes_service.dart';
-import 'flashcard_template_generator.dart';
+import 'flashcard_template_generator_complete.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../models/flashcard_element.dart' as custom_flashcard;
 
 class EnhancedNoteTemplateManager {
   final GeminiNotesService _geminiService = GeminiNotesService();

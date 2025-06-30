@@ -68,6 +68,18 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     return AdminScaffold(
       title: 'Content Management',
       selectedIndex: 2, // Content tab is selected
+      onNavigate: (index) {
+        // Handle navigation based on index
+        if (index == 0) {
+          Navigator.pushReplacementNamed(context, '/adminHome');
+        } else if (index == 1) {
+          Navigator.pushReplacementNamed(context, '/userManagement');
+        } else if (index == 3) {
+          Navigator.pushReplacementNamed(context, '/analytics');
+        } else if (index == 4) {
+          Navigator.pushReplacementNamed(context, '/settings');
+        }
+      },
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddSubjectDialog(context),
         backgroundColor: primaryColor,
@@ -1258,7 +1270,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         gameWidget = const Center(child: Text('Game not available'));
     }
     
-    // Show game preview with custom scaffold that includes admin navigation
+    // Show game preview with a simple scaffold (no admin navigation)
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1266,6 +1278,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           appBar: AppBar(
             title: Text('Preview: ${chapter.name}'),
             backgroundColor: appBarColor,
+            automaticallyImplyLeading: false,
             actions: [
               // Enhanced Publish button
               Container(
@@ -1288,6 +1301,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
               ),
             ],
           ),
+          body: gameWidget,
         ),
       ),
     );

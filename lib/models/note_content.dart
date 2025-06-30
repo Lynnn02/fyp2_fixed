@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'container_element.dart';
+import 'package:flutter/material.dart';
 
 /// Base class for all note content elements
 abstract class NoteContentElement {
@@ -33,6 +34,8 @@ abstract class NoteContentElement {
         return DocumentElement.fromJson(json);
       case 'container':
         return ContainerElement.fromJson(json);
+      case 'flashcard':
+        return FlashcardElement.fromJson(json);
       default:
         throw Exception('Unknown note content element type: $type');
     }
@@ -149,6 +152,98 @@ class ImageElement extends NoteContentElement {
         'width': width,
         'height': height,
       };
+}
+
+/// Specialized element for flashcards with age-appropriate content
+class FlashcardElement extends NoteContentElement {
+  final String title;       // The main word/concept (e.g., "Monkey")
+  final String letter;      // The letter representation (e.g., "Mm")
+  final String imageAsset;  // Path to the image asset
+  final Map<int, String> descriptions; // Age-appropriate descriptions keyed by age
+  final Color cardColor;    // Background color of the flashcard
+  
+  FlashcardElement({
+    required String id,
+    required int position,
+    required Timestamp createdAt,
+    required this.title,
+    required this.letter,
+    required this.imageAsset,
+    required this.descriptions,
+    this.cardColor = Colors.white,
+    Map<String, dynamic>? metadata,
+  }) : super(
+          id: id,
+          type: 'flashcard',
+          position: position,
+          createdAt: createdAt,
+          metadata: metadata,
+        );
+
+  /// Get the appropriate description based on age
+  String getDescription(int age) {
+    // Default to the lowest age if the specific age isn't available
+    if (!descriptions.containsKey(age)) {
+      final availableAges = descriptions.keys.toList()..sort();
+      if (availableAges.isEmpty) return title;
+      return descriptions[availableAges.first] ?? title;
+    }
+    return descriptions[age] ?? title;
+  }
+
+  factory FlashcardElement.fromJson(Map<String, dynamic> json) {
+    // Convert the descriptions map from JSON
+    final Map<int, String> descriptions = {};
+    if (json['descriptions'] != null) {
+      final Map<String, dynamic> descMap = json['descriptions'] as Map<String, dynamic>;
+      descMap.forEach((key, value) {
+        descriptions[int.parse(key)] = value as String;
+      });
+    }
+    
+    // Parse color if available
+    Color cardColor = Colors.white;
+    if (json['cardColor'] != null) {
+      final colorValue = int.tryParse(json['cardColor'] as String);
+      if (colorValue != null) {
+        cardColor = Color(colorValue);
+      }
+    }
+    
+    return FlashcardElement(
+      id: json['id'] as String,
+      position: json['position'] as int,
+      createdAt: json['createdAt'] as Timestamp? ?? Timestamp.now(),
+      title: json['title'] as String,
+      letter: json['letter'] as String,
+      imageAsset: json['imageAsset'] as String,
+      descriptions: descriptions,
+      cardColor: cardColor,
+      metadata: json['metadata'] as Map<String, dynamic>?,
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    // Convert the descriptions map to JSON-compatible format
+    final Map<String, dynamic> descriptionsJson = {};
+    descriptions.forEach((key, value) {
+      descriptionsJson[key.toString()] = value;
+    });
+    
+    return {
+      'id': id,
+      'type': type,
+      'position': position,
+      'createdAt': createdAt,
+      'metadata': metadata,
+      'title': title,
+      'letter': letter,
+      'imageAsset': imageAsset,
+      'descriptions': descriptionsJson,
+      'cardColor': cardColor.value.toString(),
+    };
+  }
 }
 
 class AudioElement extends NoteContentElement {

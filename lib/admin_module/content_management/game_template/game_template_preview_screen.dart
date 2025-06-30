@@ -102,8 +102,7 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
         ),
       );
       
-      // Navigate back to previous screens
-      Navigator.pop(context);
+      // Navigate back to previous screen
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -363,6 +362,7 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
       appBar: AppBar(
         title: Text('Preview ${widget.templateInfo.name}'),
         backgroundColor: widget.templateInfo.color,
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: Icon(_isEditing ? Icons.check : Icons.edit),
@@ -410,20 +410,6 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
                 ElevatedButton.icon(
                   onPressed: _isPublishing || _isEditing ? null : _publishGame,
                   icon: _isPublishing

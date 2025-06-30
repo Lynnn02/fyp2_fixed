@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/game.dart';
-import '../models/quiz.dart';
+// Quiz model removed
 import '../models/video_content.dart';
 import '../models/subject.dart';
 import '../models/note_content.dart';
@@ -82,14 +82,14 @@ class ContentService {
   }
 
   // Quiz methods
-  Stream<List<Quiz>> getQuizzes() {
+  Stream<List<Map<String, dynamic>>> getQuizzes() {
     return _firestore.collection('quizzes').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Quiz.fromFirestore(doc)).toList();
+      return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
     });
   }
 
-  Future<void> saveQuiz(Quiz quiz) async {
-    await _firestore.collection('quizzes').doc(quiz.id).set(quiz.toJson());
+  Future<void> saveQuiz(Map<String, dynamic> quiz) async {
+    await _firestore.collection('quizzes').doc(quiz['id'] as String).set(quiz);
   }
 
   Future<void> deleteQuiz(String quizId) async {

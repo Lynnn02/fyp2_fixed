@@ -58,6 +58,8 @@ flutter:
     - assets/google_logo.png
     - assets/sounds/click.mp3
     - assets/sounds/success.mp3
+    - assets/flashcards/
+    - assets/flashcards/malay/
     - assets/sounds/error.mp3
     - assets/sounds/completion.mp3
     - assets/sounds/page_turn.mp3

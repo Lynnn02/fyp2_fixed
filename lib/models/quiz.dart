@@ -5,71 +5,85 @@ class Quiz {
   final String title;
   final String description;
   final List<QuizQuestion> questions;
+  final String subject;
+  final String chapter;
   final int ageGroup;
-
+  final Timestamp createdAt;
+  
   Quiz({
     required this.id,
     required this.title,
     required this.description,
     required this.questions,
+    required this.subject,
+    required this.chapter,
     required this.ageGroup,
+    required this.createdAt,
   });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'description': description,
-        'questions': questions.map((q) => q.toJson()).toList(),
-        'ageGroup': ageGroup,
-      };
-
-  factory Quiz.fromJson(Map<String, dynamic> json) {
-    return Quiz(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      questions: (json['questions'] as List)
-          .map((q) => QuizQuestion.fromJson(q))
-          .toList(),
-      ageGroup: json['ageGroup'] as int,
-    );
-  }
-
+  
   factory Quiz.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    return Quiz.fromJson({
-      'id': doc.id,
-      ...data,
-    });
+    
+    List<QuizQuestion> questions = [];
+    if (data['questions'] != null) {
+      questions = (data['questions'] as List)
+          .map((q) => QuizQuestion.fromMap(q as Map<String, dynamic>))
+          .toList();
+    }
+    
+    return Quiz(
+      id: doc.id,
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      questions: questions,
+      subject: data['subject'] ?? '',
+      chapter: data['chapter'] ?? '',
+      ageGroup: data['ageGroup'] ?? 4,
+      createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+    );
+  }
+  
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'description': description,
+      'questions': questions.map((q) => q.toMap()).toList(),
+      'subject': subject,
+      'chapter': chapter,
+      'ageGroup': ageGroup,
+      'createdAt': createdAt,
+    };
   }
 }
 
 class QuizQuestion {
   final String question;
-  final String imageUrl;
   final List<String> options;
-  final int correctAnswer;
-
+  final int correctOptionIndex;
+  final String? imageUrl;
+  
   QuizQuestion({
     required this.question,
-    required this.imageUrl,
     required this.options,
-    required this.correctAnswer,
+    required this.correctOptionIndex,
+    this.imageUrl,
   });
-
-  Map<String, dynamic> toJson() => {
-        'question': question,
-        'imageUrl': imageUrl,
-        'options': options,
-        'correctAnswer': correctAnswer,
-      };
-
-  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
+  
+  factory QuizQuestion.fromMap(Map<String, dynamic> map) {
     return QuizQuestion(
-      question: json['question'] as String,
-      imageUrl: json['imageUrl'] as String,
-      options: (json['options'] as List).map((e) => e as String).toList(),
-      correctAnswer: json['correctAnswer'] as int,
+      question: map['question'] ?? '',
+      options: List<String>.from(map['options'] ?? []),
+      correctOptionIndex: map['correctOptionIndex'] ?? 0,
+      imageUrl: map['imageUrl'],
     );
+  }
+  
+  Map<String, dynamic> toMap() {
+    return {
+      'question': question,
+      'options': options,
+      'correctOptionIndex': correctOptionIndex,
+      'imageUrl': imageUrl,
+    };
   }
 }
