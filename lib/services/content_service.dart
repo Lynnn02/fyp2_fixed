@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/game.dart';
@@ -21,11 +22,66 @@ class ContentService {
   
   // Get a specific game by ID
   Future<Game?> getGameById(String gameId) async {
-    final doc = await _firestore.collection('games').doc(gameId).get();
-    if (doc.exists) {
-      return Game.fromFirestore(doc);
+    try {
+      print('ContentService: Fetching game with ID: $gameId');
+      
+      // Get a direct reference to the Firestore document
+      final gameDoc = await _firestore
+          .collection('games')
+          .doc(gameId)
+          .get();
+
+      if (!gameDoc.exists) {
+        print('ContentService: Game not found: $gameId');
+        return null;
+      }
+      
+      // Get the raw data to inspect it
+      final rawData = gameDoc.data();
+      if (rawData == null) {
+        print('ContentService: Game document exists but has no data');
+        return null;
+      }
+      
+      print('ContentService: Game data found with fields: ${rawData.keys.toList()}');
+      
+      // Check if content field exists and log its details
+      if (rawData.containsKey('content')) {
+        final contentField = rawData['content'];
+        print('ContentService: Content field type: ${contentField.runtimeType}');
+        
+        if (contentField is String) {
+          print('ContentService: Content field length: ${contentField.length}');
+          print('ContentService: Content field sample: ${contentField.substring(0, contentField.length > 50 ? 50 : contentField.length)}');
+          
+          try {
+            final decoded = jsonDecode(contentField);
+            print('ContentService: Successfully decoded content JSON');
+            if (decoded is Map<String, dynamic>) {
+              print('ContentService: Decoded content keys: ${decoded.keys.toList()}');
+              
+              // Add the decoded content directly to the raw data
+              rawData['decodedContent'] = decoded;
+              rawData['gameContent'] = decoded;
+            }
+          } catch (e) {
+            print('ContentService: Failed to decode content: $e');
+          }
+        } else if (contentField is Map<String, dynamic>) {
+          print('ContentService: Content field is already a Map with keys: ${contentField.keys.toList()}');
+          rawData['decodedContent'] = contentField;
+          rawData['gameContent'] = contentField;
+        }
+      } else {
+        print('ContentService: Game does not contain encoded content string');
+      }
+      
+      print('ContentService: Successfully retrieved game document: $gameId');
+      return Game.fromFirestore(gameDoc);
+    } catch (e) {
+      print('ContentService: Error retrieving game: $e');
+      return null;
     }
-    return null;
   }
 
   Future<void> saveGame(Game game) async {
@@ -709,6 +765,35 @@ class ContentService {
       await _firestore.collection('subjects').doc(subjectId).update({
         'chapters': chapters,
       });
+    }
+  }
+  
+  // Update chapter game type to ensure consistency between chapter and game document
+  Future<void> updateChapterGameType(String subjectId, String chapterId, String gameType) async {
+    try {
+      print('Updating chapter game type: $subjectId, $chapterId, $gameType');
+      final subject = await _firestore.collection('subjects').doc(subjectId).get();
+      if (!subject.exists) {
+        print('Subject does not exist: $subjectId');
+        return;
+      }
+
+      final chapters = (subject.data()?['chapters'] as List<dynamic>? ?? []).toList();
+      final index = chapters.indexWhere((c) => c['id'] == chapterId);
+      
+      if (index != -1) {
+        print('Found chapter at index $index, updating gameType to $gameType');
+        chapters[index]['gameType'] = gameType;
+        await _firestore.collection('subjects').doc(subjectId).update({
+          'chapters': chapters,
+        });
+        print('Successfully updated chapter game type');
+      } else {
+        print('Chapter not found with ID: $chapterId');
+      }
+    } catch (e) {
+      print('Error updating chapter game type: $e');
+      throw e;
     }
   }
   

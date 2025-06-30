@@ -12,6 +12,7 @@ class EnglishMatchingGame extends StatefulWidget {
   final String userId;
   final String userName;
   final int ageGroup;
+  final Map<String, dynamic>? gameContent; // Add gameContent parameter
   
   const EnglishMatchingGame({
     Key? key,
@@ -22,6 +23,7 @@ class EnglishMatchingGame extends StatefulWidget {
     required this.userId,
     required this.userName,
     required this.ageGroup,
+    this.gameContent, // Make it optional for backward compatibility
   }) : super(key: key);
 
   @override
@@ -67,15 +69,53 @@ class _EnglishMatchingGameState extends State<EnglishMatchingGame> {
   }
   
   void initializeGame() {
+    print('Initializing English matching game');
+    
     // Create pairs of words and images
-    final List<MatchingPair> pairs = [
-      MatchingPair(word: 'Apple', imageAsset: 'assets/game/apple.png', emoji: '🍎'),
-      MatchingPair(word: 'Banana', imageAsset: 'assets/game/banana.png', emoji: '🍌'),
-      MatchingPair(word: 'Cat', imageAsset: 'assets/game/cat.png', emoji: '🐱'),
-      MatchingPair(word: 'Dog', imageAsset: 'assets/game/dog.png', emoji: '🐶'),
-      MatchingPair(word: 'Elephant', imageAsset: 'assets/game/elephant.png', emoji: '🐘'),
-      MatchingPair(word: 'Fish', imageAsset: 'assets/game/fish.png', emoji: '🐠'),
-    ];
+    List<MatchingPair> pairs = [];
+    
+    // Check if we have dynamic content from Firestore
+    if (widget.gameContent != null) {
+      print('Using dynamic gameContent: ${widget.gameContent!.keys.toList()}');
+      
+      // Check if the content has pairs array
+      if (widget.gameContent!.containsKey('pairs') && widget.gameContent!['pairs'] is List) {
+        final dynamicPairs = widget.gameContent!['pairs'] as List;
+        print('Found ${dynamicPairs.length} pairs in game content');
+        
+        for (var pair in dynamicPairs) {
+          if (pair is Map) {
+            // Get word from most likely field names
+            final word = pair['malay_word'] ?? pair['word'] ?? pair['text'] ?? '';
+            final emoji = pair['emoji'] ?? pair['image'] ?? '❓';
+            final description = pair['description'] ?? '';
+            
+            print('Adding dynamic pair: $word - $emoji');
+            pairs.add(MatchingPair(
+              word: word.toString(),
+              imageAsset: '',  // We don't use assets with dynamic content
+              emoji: emoji.toString(),
+              description: description.toString(),
+            ));
+          }
+        }
+      } else {
+        print('No pairs found in game content, using fallback');
+      }
+    }
+    
+    // Use default content if no dynamic content was found or processed
+    if (pairs.isEmpty) {
+      print('Using default matching pairs');
+      pairs = [
+        MatchingPair(word: 'Apple', imageAsset: 'assets/game/apple.png', emoji: '🍎'),
+        MatchingPair(word: 'Banana', imageAsset: 'assets/game/banana.png', emoji: '🍌'),
+        MatchingPair(word: 'Cat', imageAsset: 'assets/game/cat.png', emoji: '🐱'),
+        MatchingPair(word: 'Dog', imageAsset: 'assets/game/dog.png', emoji: '🐶'),
+        MatchingPair(word: 'Elephant', imageAsset: 'assets/game/elephant.png', emoji: '🐘'),
+        MatchingPair(word: 'Fish', imageAsset: 'assets/game/fish.png', emoji: '🐠'),
+      ];
+    }
     
     // Create matching items
     items = [];
@@ -403,11 +443,13 @@ class MatchingPair {
   final String word;
   final String imageAsset;
   final String emoji;
+  final String description;
   
   MatchingPair({
     required this.word,
     required this.imageAsset,
     required this.emoji,
+    this.description = '',
   });
 }
 

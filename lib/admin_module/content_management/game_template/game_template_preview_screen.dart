@@ -92,28 +92,116 @@ class _GameTemplatePreviewScreenState extends State<GameTemplatePreviewScreen> {
       int score = 85; // Default score for games
       int stars = 4;  // Default stars for games
       
-      // Create game document in database
+      // Ensure the game type is consistent
+      final String gameType = widget.templateInfo.id.toLowerCase();
+      print('Publishing game with type: $gameType');
+      
+      // CRITICAL FIX: Create content field and alternative content fields for redundancy
+      final String contentJson = jsonEncode(widget.gameContent);
+      
+      // Create game document in database with multiple ways to store content
       final gameData = {
-        'name': _gameName,
+        'title': _gameName,
+        'name': _gameName, // For backward compatibility
         'description': _gameDescription,
         'templateType': widget.templateInfo.id,
+        'type': gameType, // Ensure type field is set consistently
         'subjectId': widget.subjectId,
         'subjectName': widget.subjectName,
         'chapterId': widget.chapterId,
         'chapterName': widget.chapterName,
         'ageGroup': widget.ageGroup,
-        'content': jsonEncode(widget.gameContent),
+        'content': contentJson, // Standard content field
+        'gameContent': widget.gameContent, // Try storing directly as a map too
+        'rawContent': contentJson, // Add redundant field with different name
+        'contentLength': contentJson.length, // Store length for verification
+        'contentFields': widget.gameContent.keys.toList().join(','), // Store field names
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
         'score': score, // Add score field for consistency with notes
         'stars': stars, // Add stars field for consistency with notes
-        'type': 'game', // Specify that this is a game for the child module
         'completionStatus': 'completed', // Mark as completed
         'studyMinutes': studyMinutes, // Add study time tracking
       };
       
-      // Save to database
-      final gameId = await _databaseService.addGame(gameData);
+      // Add individual content fields directly to the document root
+      // This is a fallback in case the nested content object isn't preserved
+      widget.gameContent.forEach((key, value) {
+        gameData['content_$key'] = value is Map || value is List ? jsonEncode(value) : value;
+      });
+      
+      // Print debugging information
+      print('CONTENT JSON LENGTH: ${contentJson.length}');
+      print('Saving game with content keys: ${widget.gameContent.keys.toList()}');
+      print('Content sample: ${contentJson.substring(0, min(100, contentJson.length))}...');
+      
+      // Override any existing game data if a game ID is associated with this chapter
+      // This ensures we update existing games rather than creating duplicates
+      String gameId;
+      
+      try {
+        // Check if this chapter already has a game
+        final chapterDoc = await FirebaseFirestore.instance.collection('chapters')
+            .doc(widget.chapterId).get();
+        
+        final existingGameId = chapterDoc.data()?['gameId'];
+        
+        if (existingGameId != null && existingGameId.toString().isNotEmpty) {
+          // Update existing game
+          gameId = existingGameId;
+          print('Updating existing game with ID: $gameId');
+          
+          await FirebaseFirestore.instance.collection('games')
+              .doc(gameId)
+              .set(gameData, SetOptions(merge: false)); // Replace entire document
+          
+          // Verify content was saved
+          final verifyDoc = await FirebaseFirestore.instance.collection('games').doc(gameId).get();
+          final Map<String, dynamic>? savedData = verifyDoc.data();
+          print('VERIFICATION - Saved game data keys: ${savedData?.keys.toList() ?? "No data found"}');
+          print('VERIFICATION - Content field exists: ${savedData?.containsKey("content") ?? false}');
+          if (savedData?.containsKey('content') ?? false) {
+            print('VERIFICATION - Content length: ${(savedData!['content'] as String).length}');
+          }
+        } else {
+          // Create new game
+          print('Creating new game document');
+          final docRef = await FirebaseFirestore.instance.collection('games').add(gameData);
+          gameId = docRef.id;
+          
+          // Update the document to include its ID
+          await FirebaseFirestore.instance.collection('games').doc(gameId).update({'id': gameId});
+          
+          // Verify content was saved
+          final verifyDoc = await FirebaseFirestore.instance.collection('games').doc(gameId).get();
+          final Map<String, dynamic>? savedData = verifyDoc.data();
+          print('VERIFICATION - Saved game data keys: ${savedData?.keys.toList() ?? "No data found"}');
+          print('VERIFICATION - Content field exists: ${savedData?.containsKey("content") ?? false}');
+          if (savedData?.containsKey('content') ?? false) {
+            print('VERIFICATION - Content length: ${(savedData!['content'] as String).length}');
+          }
+        }
+      } catch (error) {
+        print('Error creating/updating game: $error');
+        // Create new game as fallback
+        final docRef = await FirebaseFirestore.instance.collection('games').add(gameData);
+        gameId = docRef.id;
+        await FirebaseFirestore.instance.collection('games').doc(gameId).update({'id': gameId});
+      }
+      
+      print('Game saved directly to Firestore with ID: $gameId');
+      
+      // Also update chapter to reference this game
+      try {
+        await FirebaseFirestore.instance.collection('chapters').doc(widget.chapterId).update({
+          'gameId': gameId,
+          'gameType': gameType,
+        });
+        print('Updated chapter ${widget.chapterId} with gameId: $gameId and gameType: $gameType');
+      } catch (chapterError) {
+        print('Error updating chapter: $chapterError');
+        // Continue with the publishing process even if chapter update fails
+      }
       
       // Record the score in the scores collection for leaderboard functionality
       try {

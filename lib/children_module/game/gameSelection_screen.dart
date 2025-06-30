@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'dart:math';
 import '../../models/subject.dart';
 import '../../models/game.dart';
 import '../../services/content_service.dart';
@@ -7,6 +10,7 @@ import '../../admin_module/content_management/game_template/game_template/matchi
 import '../../admin_module/content_management/game_template/game_template/tracing_game.dart';
 import '../../admin_module/content_management/game_template/game_template/sorting_game.dart';
 import '../../admin_module/content_management/game_template/game_template/shape_color_game.dart';
+import 'english_matching_game.dart';
 
 class GameSelectionScreen extends StatefulWidget {
   final Chapter chapter;
@@ -45,21 +49,74 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
     });
     
     try {
-      // Check if the chapter has a game associated with it
-      if (widget.chapter.gameId != null && widget.chapter.gameType != null) {
-        // Load the game data from Firestore
-        final game = await _contentService.getGameById(widget.chapter.gameId!);
-        setState(() {
-          _game = game;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = 'No game available for this chapter';
-          _isLoading = false;
-        });
+      print('Loading game with ID: ${widget.chapter.gameId} and type: ${widget.chapter.gameType}');
+      
+      // First, directly query Firestore to see the raw game data
+      try {
+        final rawDoc = await FirebaseFirestore.instance.collection('games').doc(widget.chapter.gameId).get();
+        if (rawDoc.exists) {
+          final rawData = rawDoc.data();
+          print('RAW FIRESTORE DATA - Game keys: ${rawData?.keys.toList() ?? "No data"}');
+          
+          // Check specifically for content field
+          if (rawData?.containsKey('content') ?? false) {
+            final contentValue = rawData!['content'];
+            print('CONTENT FIELD TYPE: ${contentValue.runtimeType}');
+            print('CONTENT FIELD LENGTH: ${contentValue is String ? contentValue.length : "Not a string"}');
+            print('CONTENT SAMPLE: ${contentValue is String ? contentValue.substring(0, min(50, contentValue.length)) : "Not a string"}');
+            
+            try {
+              // Try to decode the content
+              if (contentValue is String) {
+                final decoded = jsonDecode(contentValue);
+                print('SUCCESSFULLY DECODED CONTENT: ${decoded is Map ? decoded.keys.toList() : "Not a map"}');
+              }
+            } catch (decodeError) {
+              print('ERROR DECODING CONTENT: $decodeError');
+            }
+          } else {
+            print('NO CONTENT FIELD FOUND IN RAW FIRESTORE DATA');
+          }
+        } else {
+          print('RAW FIRESTORE DATA - Game document does not exist');
+        }
+      } catch (rawError) {
+        print('Error fetching raw Firestore data: $rawError');
       }
+      
+      // Now get the game through the service as before
+      final game = await _contentService.getGameById(widget.chapter.gameId!);
+      
+      if (game == null) {
+        setState(() {
+          _errorMessage = 'Game not found';
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // Check if the game type matches the chapter's game type
+      if (widget.chapter.gameType != null && 
+          game.type.toLowerCase() != widget.chapter.gameType!.toLowerCase()) {
+        print('Warning: Game type mismatch. Chapter says ${widget.chapter.gameType}, but game says ${game.type}');
+        print('Updating chapter to use the correct game type: ${game.type}');
+        
+        // Update the chapter's game type in Firestore
+        await _contentService.updateChapterGameType(
+          widget.subject.id, 
+          widget.chapter.id, 
+          game.type
+        );
+      }
+      
+      setState(() {
+        _game = game;
+        _isLoading = false;
+      });
+      
+      print('Successfully loaded game: ${_game!.title}');
     } catch (e) {
+      print('Error loading game data: $e');
       setState(() {
         _errorMessage = 'Error loading game: $e';
         _isLoading = false;
@@ -108,25 +165,63 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
     if (_game == null || widget.chapter.gameType == null) return;
     
     final gameType = widget.chapter.gameType!.toLowerCase();
+    print('Launching game type: $gameType with gameId: ${_game!.id}');
+    
+    // Log information about the game content
+    if (_game!.gameContent != null) {
+      print('Game has decoded content with keys: ${_game!.gameContent!.keys.toList()}');
+    } else {
+      print('Warning: Game has no decoded content');
+    }
+    
+    // Create a proper game content map that includes both game metadata and decoded content
+    Map<String, dynamic> fullGameContent = _game!.toJson();
+    if (_game!.gameContent != null) {
+      // If we have decoded content from the 'content' field, use that directly as gameContent
+      fullGameContent = _game!.gameContent!;
+      
+      // Add any missing metadata fields that might be needed by the game widgets
+      fullGameContent.putIfAbsent('id', () => _game!.id);
+      fullGameContent.putIfAbsent('title', () => _game!.title);
+      fullGameContent.putIfAbsent('type', () => _game!.type);
+    }
+    
+    print('Full game content for widget: ${fullGameContent.keys.toList()}');
     Widget gameWidget;
     
     switch (gameType) {
       case 'matching':
-        gameWidget = MatchingGame(
-          chapterName: widget.chapter.name, 
-          gameContent: _game!.toJson(),
-          subjectId: widget.subject.id,
-          subjectName: widget.subject.name,
-          chapterId: widget.chapter.id,
-          userId: widget.userId,
-          userName: widget.userName,
-          ageGroup: widget.subject.moduleId,
-        );
+        // Try to use the built-in English matching game first for backward compatibility
+        if (widget.subject.name.toLowerCase().contains('english')) {
+          print('Using English Matching Game with dynamic content');
+          gameWidget = EnglishMatchingGame(
+            chapterName: widget.chapter.name,
+            gameContent: fullGameContent, // Pass the dynamic content
+            subjectId: widget.subject.id,
+            subjectName: widget.subject.name,
+            chapterId: widget.chapter.id,
+            userId: widget.userId,
+            userName: widget.userName,
+            ageGroup: widget.subject.moduleId,
+          );
+        } else {
+          // Use the general matching game for other subjects
+          gameWidget = MatchingGame(
+            chapterName: widget.chapter.name, 
+            gameContent: fullGameContent,
+            subjectId: widget.subject.id,
+            subjectName: widget.subject.name,
+            chapterId: widget.chapter.id,
+            userId: widget.userId,
+            userName: widget.userName,
+            ageGroup: widget.subject.moduleId,
+          );
+        }
         break;
       case 'shape_color':
         gameWidget = ShapeColorGame(
           chapterName: widget.chapter.name, 
-          gameContent: _game!.toJson(),
+          gameContent: fullGameContent,
           userId: widget.userId,
           userName: widget.userName,
           subjectId: widget.subject.id,
@@ -138,13 +233,13 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
       case 'tracing':
         gameWidget = TracingGame(
           chapterName: widget.chapter.name, 
-          gameContent: _game!.toJson(),
+          gameContent: fullGameContent,
         );
         break;
       case 'sorting':
         gameWidget = SortingGame(
           chapterName: widget.chapter.name, 
-          gameContent: _game!.toJson(),
+          gameContent: fullGameContent,
         );
         break;
       default:
