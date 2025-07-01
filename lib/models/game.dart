@@ -133,11 +133,41 @@ class Game {
   }
 
   factory Game.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     
-    // Debug logging
-    print('Loading game from Firestore: ${doc.id}');
-    print('Game data keys: ${data.keys.toList()}');
+    // Extract content field with fallbacks for backward compatibility
+    String content = '';
+    if (data.containsKey('content') && data['content'] != null) {
+      content = data['content'];
+    } else if (data.containsKey('gameContent') && data['gameContent'] != null) {
+      content = data['gameContent'];
+    }
+    
+    // Extract assets for game templates
+    List<dynamic> assets = [];
+    if (data.containsKey('assets') && data['assets'] != null) {
+      assets = data['assets'];
+    }
+    
+    // For published games, ensure we get the content from assets if the content field is empty
+    // This fixes the sync issue between admin publishing and children app
+    if (content.isEmpty && assets.isNotEmpty && data['type'] == 'published') {
+      try {
+        // Extract content from the first asset that contains game content
+        for (var asset in assets) {
+          if (asset is Map<String, dynamic> && 
+              asset.containsKey('content') && 
+              asset['content'] != null && 
+              asset['content'].toString().isNotEmpty) {
+            content = asset['content'];
+            break;
+          }
+        }
+        print('Extracted game content from assets for game: ${doc.id}');
+      } catch (e) {
+        print('Error extracting content from assets: $e');
+      }
+    }
     
     // Extract game content with multiple fallback approaches
     Map<String, dynamic>? gameContent;

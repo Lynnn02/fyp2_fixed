@@ -247,6 +247,7 @@ class ScoreService {
   }
 
   // Get leaderboard for a specific subject
+  // Excludes admin users from the results
   Future<List<LeaderboardEntry>> getSubjectLeaderboard(String subjectId) async {
     try {
       // First, get all profiles to have accurate student names
@@ -315,6 +316,7 @@ class ScoreService {
   }
 
   // Get global leaderboard
+  // Excludes admin users from the results
   Future<List<LeaderboardEntry>> getGlobalLeaderboard() async {
     try {
       final snapshot = await _firestore.collection('scores').get();
@@ -353,6 +355,7 @@ class ScoreService {
   }
 
   // Get leaderboard for a specific age group
+  // Excludes admin users from the results
   Future<List<LeaderboardEntry>> getAgeGroupLeaderboard(int ageGroup) async {
     try {
       // First, get all profiles to have accurate student names

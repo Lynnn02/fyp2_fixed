@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_scaffold.dart';
 import 'user_management/user_list_screen.dart';
-import 'analytic/new_analytic_screen.dart';
+import 'analytic/analytic_screen.dart';
 import 'content_management/content_management_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {

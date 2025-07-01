@@ -142,9 +142,41 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
         }
       }
       
+      // Filter out admin users from the leaderboard
+      final filteredLeaderboard = leaderboard.where((entry) {
+        final userId = entry.userId;
+        final userName = entry.userName.toLowerCase();
+        
+        // Filter out users with admin-related userIds or userNames
+        return userId != 'admin' && 
+               !userId.startsWith('admin_') && 
+               userId != 'Administrator' &&
+               !userName.contains('admin') &&
+               userName != 'administrator';
+      }).toList();
+      
+      // Recalculate ranks after filtering
+      for (int i = 0; i < filteredLeaderboard.length; i++) {
+        filteredLeaderboard[i] = LeaderboardEntry(
+          userId: filteredLeaderboard[i].userId,
+          userName: filteredLeaderboard[i].userName,
+          totalPoints: filteredLeaderboard[i].totalPoints,
+          rank: i + 1,  // Reassign ranks after filtering
+          ageGroup: filteredLeaderboard[i].ageGroup,
+        );
+      }
+      
       setState(() {
-        _leaderboard = leaderboard;
-        _userRank = userRank;
+        _leaderboard = filteredLeaderboard;
+        
+        // Update user rank if needed
+        if (widget.userId != null) {
+          final userEntryIndex = filteredLeaderboard.indexWhere((entry) => entry.userId == widget.userId);
+          if (userEntryIndex >= 0) {
+            _userRank = userEntryIndex + 1;
+          }
+        }
+        
         _userPoints = userPoints;
         _isLoading = false;
       });
