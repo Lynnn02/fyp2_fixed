@@ -3,7 +3,6 @@ import 'package:just_audio/just_audio.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
-
 import '../../models/note_content.dart';
 import '../../services/content_service.dart';
 import '../../services/score_service.dart';
@@ -125,9 +124,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
   void _setupBackgroundMusicPlayer() async {
     try {
       // Use a cheerful, child-friendly background music
-      const bgMusicUrl = 'https://example.com/childrens_background_music.mp3';
-      // You should replace this with an actual music URL or asset
-      // For now we'll just set it up without playing
+      const bgMusicUrl = '../../assets/bg_music.mp3';
       
       _backgroundMusicPlayer = AudioPlayer();
       try {
