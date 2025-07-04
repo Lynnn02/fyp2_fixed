@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../parent_module/screen_time_lock_screen.dart';
 
 class ScreenTimeScreen extends StatefulWidget {
   final String childId;
@@ -152,6 +153,18 @@ class _ScreenTimeScreenState extends State<ScreenTimeScreen> {
       // Save restricted periods as JSON string
       final restrictedPeriodsJson = jsonEncode(_restrictedPeriods);
       await prefs.setString('restrictedPeriods', restrictedPeriodsJson);
+      
+      // Set initial screen time usage for today if not already set
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final lastActiveDate = prefs.getString('lastActiveDate');
+      
+      if (lastActiveDate != today) {
+        await prefs.setInt('screenTimeUsedToday', 0);
+        await prefs.setString('lastActiveDate', today);
+      }
+      
+      // Force the screen time manager to reload settings
+      await ScreenTimeManager.trackUsage();
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Screen time settings saved')),

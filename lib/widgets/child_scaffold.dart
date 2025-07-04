@@ -158,6 +158,17 @@ class ChildScaffold extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () async {
+              // Clear SharedPreferences user data
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('currentUserId');
+              await prefs.remove('currentUsername');
+              await prefs.remove('currentUserEmail');
+              await prefs.remove('currentUserDisplayName');
+              await prefs.setBool('isUserLoggedIn', false);
+              
+              print('Cleared user credentials from SharedPreferences during sign out');
+              
+              // Sign out from Firebase
               await FirebaseAuth.instance.signOut();
               Navigator.pop(context); // Close the dialog
               

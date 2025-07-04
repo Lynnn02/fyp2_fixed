@@ -227,16 +227,25 @@ class _SubjectSelectionScreenState extends State<SubjectSelectionScreen> {
   // Filter subjects based on content filter settings
   Future<List<Subject>> _filterSubjects(List<Subject> subjects) async {
     List<Subject> filteredSubjects = [];
+    print('Filtering ${subjects.length} subjects for Learn module');
     
     for (var subject in subjects) {
-      // Check if subject is allowed by content filters
+      // Check if subject is allowed by content filters (try both ID and name)
       bool isAllowed = await _filterService.isSubjectAllowed(subject.id);
+      
+      if (!isAllowed) {
+        // Double check by name if ID check failed
+        isAllowed = await _filterService.isSubjectAllowed(subject.name);
+      }
+      
+      print('Subject ${subject.name} (ID: ${subject.id}) allowed: $isAllowed');
       
       if (isAllowed) {
         filteredSubjects.add(subject);
       }
     }
     
+    print('After filtering: ${filteredSubjects.length} subjects allowed');
     return filteredSubjects;
   }
 }

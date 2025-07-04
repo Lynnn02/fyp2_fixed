@@ -6,6 +6,8 @@ import 'dart:math';
 import '../../models/subject.dart';
 import '../../models/game.dart';
 import '../../services/content_service.dart';
+import '../../templates/subject_template_manager.dart';
+import '../../services/game_template_manager.dart';
 import '../../admin_module/content_management/game_template/game_template/matching_game.dart';
 import '../../admin_module/content_management/game_template/game_template/tracing_game.dart';
 import '../../admin_module/content_management/game_template/game_template/sorting_game.dart';
@@ -51,41 +53,36 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
     try {
       print('Loading game with ID: ${widget.chapter.gameId} and type: ${widget.chapter.gameType}');
       
-      // First, directly query Firestore to see the raw game data
-      try {
-        final rawDoc = await FirebaseFirestore.instance.collection('games').doc(widget.chapter.gameId).get();
-        if (rawDoc.exists) {
-          final rawData = rawDoc.data();
-          print('RAW FIRESTORE DATA - Game keys: ${rawData?.keys.toList() ?? "No data"}');
+      final rawDoc = await FirebaseFirestore.instance.collection('games').doc(widget.chapter.gameId).get();
+      if (rawDoc.exists) {
+        final rawData = rawDoc.data();
+        print('RAW FIRESTORE DATA - Game keys: ${rawData?.keys.toList() ?? "No data"}');
+        
+        if (rawData?.containsKey('content') ?? false) {
+          final contentValue = rawData!['content'];
+          print('CONTENT FIELD TYPE: ${contentValue.runtimeType}');
+          print('CONTENT FIELD LENGTH: ${contentValue is String ? contentValue.length : "Not a string"}');
+          print('CONTENT SAMPLE: ${contentValue is String ? contentValue.substring(0, min(50, contentValue.length)) : "Not a string"}');
           
-          // Check specifically for content field
-          if (rawData?.containsKey('content') ?? false) {
-            final contentValue = rawData!['content'];
-            print('CONTENT FIELD TYPE: ${contentValue.runtimeType}');
-            print('CONTENT FIELD LENGTH: ${contentValue is String ? contentValue.length : "Not a string"}');
-            print('CONTENT SAMPLE: ${contentValue is String ? contentValue.substring(0, min(50, contentValue.length)) : "Not a string"}');
-            
-            try {
-              // Try to decode the content
-              if (contentValue is String) {
-                final decoded = jsonDecode(contentValue);
-                print('SUCCESSFULLY DECODED CONTENT: ${decoded is Map ? decoded.keys.toList() : "Not a map"}');
-              }
-            } catch (decodeError) {
-              print('ERROR DECODING CONTENT: $decodeError');
+          try {
+            if (contentValue is String) {
+              final decoded = jsonDecode(contentValue);
+              print('SUCCESSFULLY DECODED CONTENT: ${decoded is Map ? decoded.keys.toList() : "Not a map"}');
             }
-          } else {
-            print('NO CONTENT FIELD FOUND IN RAW FIRESTORE DATA');
+          } catch (decodeError) {
+            print('ERROR DECODING CONTENT: $decodeError');
           }
         } else {
-          print('RAW FIRESTORE DATA - Game document does not exist');
+          print('NO CONTENT FIELD FOUND IN RAW FIRESTORE DATA');
         }
-      } catch (rawError) {
-        print('Error fetching raw Firestore data: $rawError');
+      } else {
+        print('RAW FIRESTORE DATA - Game document does not exist');
       }
       
       // Now get the game through the service as before
-      final game = await _contentService.getGameById(widget.chapter.gameId!);
+      print('Loading game for subject: ${widget.subject.name}');
+      var game = await _contentService.getGameById(widget.chapter.gameId!);
+      print('Game loaded from ContentService: ${game?.title}, Type: ${game?.type}');
       
       if (game == null) {
         setState(() {
@@ -95,18 +92,57 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
         return;
       }
       
-      // Check if the game type matches the chapter's game type
+      // Check if game type needs to be updated
       if (widget.chapter.gameType != null && 
           game.type.toLowerCase() != widget.chapter.gameType!.toLowerCase()) {
         print('Warning: Game type mismatch. Chapter says ${widget.chapter.gameType}, but game says ${game.type}');
         print('Updating chapter to use the correct game type: ${game.type}');
         
-        // Update the chapter's game type in Firestore
         await _contentService.updateChapterGameType(
           widget.subject.id, 
           widget.chapter.id, 
           game.type
         );
+      }
+      
+      // Check for template content for all subjects
+      print('🔍 EXACT Subject Name: "${widget.subject.name}"');
+      print('🔍 EXACT Chapter Name: "${widget.chapter.name}"');
+      
+      // Try to get predefined content from template system
+      print('🔍 GameTemplateManager: Looking for predefined content');
+      int ageGroup = widget.subject.moduleId ?? 4; // Default to age 4 if not set
+      int rounds = 5; // Default number of rounds
+      
+      final templateContent = await _getTemplateContent(
+        gameType: game.type.toLowerCase(),
+        subjectName: widget.subject.name,
+        chapterName: widget.chapter.name,
+        ageGroup: ageGroup,
+        rounds: rounds
+      );
+      
+      // If template content is found, override the game content
+      if (templateContent != null) {
+        print('📌 Using PREDEFINED template content for ${widget.subject.name} - ${widget.chapter.name}');
+        print('🔍 ContentManagementScreen: Game content received:');
+        print('📦 Content keys: ${templateContent.keys.toList()}');
+        
+        if (templateContent.containsKey('pairs')) {
+          print('✅ Found pairs: ${templateContent['pairs'].length} items');
+        }
+        
+        // Update the game with template content
+        if (game.gameContent == null) {
+          game = game.copyWith(gameContent: templateContent);
+        } else {
+          // Create a new map with all existing content
+          final updatedContent = Map<String, dynamic>.from(game.gameContent!);
+          // Override with template content
+          updatedContent.addAll(templateContent);
+          // Update the game
+          game = game.copyWith(gameContent: updatedContent);
+        }
       }
       
       setState(() {
@@ -116,11 +152,46 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
       
       print('Successfully loaded game: ${_game!.title}');
     } catch (e) {
-      print('Error loading game data: $e');
+      print('Error loading game: $e');
       setState(() {
-        _errorMessage = 'Error loading game: $e';
+        _errorMessage = 'Error loading game';
         _isLoading = false;
       });
+    }
+  }
+  
+  // Helper method to get template content
+  Future<Map<String, dynamic>?> _getTemplateContent({
+    required String gameType,
+    required String subjectName,
+    required String chapterName,
+    required int ageGroup,
+    required int rounds
+  }) async {
+    try {
+      final content = SubjectTemplateManager.getTemplateContent(
+        subjectName: subjectName,
+        chapterName: chapterName,
+        gameType: gameType,
+        ageGroup: ageGroup,
+        rounds: rounds
+      );
+      
+      if (content != null) {
+        return content;
+      }
+      
+      // If specific template not found, use GameTemplateManager for generic content
+      return GameTemplateManager().getPredefinedContent(
+        templateType: gameType,
+        subjectName: subjectName,
+        chapterName: chapterName,
+        ageGroup: ageGroup,
+        rounds: rounds
+      );
+    } catch (e) {
+      print('Error getting template content: $e');
+      return null;
     }
   }
   
@@ -170,8 +241,10 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
     // Log information about the game content
     if (_game!.gameContent != null) {
       print('Game has decoded content with keys: ${_game!.gameContent!.keys.toList()}');
+      print('Subject: ${widget.subject.name}, Game type: $gameType');
+      print('Game content sample: ${_game!.gameContent!.toString().substring(0, min(200, _game!.gameContent!.toString().length))}');
     } else {
-      print('Warning: Game has no decoded content');
+      print('Warning: Game has no decoded content for ${widget.subject.name}');
     }
     
     // Create a proper game content map that includes both game metadata and decoded content

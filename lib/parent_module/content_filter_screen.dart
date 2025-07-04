@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/content_filter_service.dart';
 
 class ContentFilterScreen extends StatefulWidget {
   final String childId;
@@ -146,6 +148,13 @@ class _ContentFilterScreenState extends State<ContentFilterScreen> {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       
+      // Update ContentFilterService cache directly and also save to SharedPreferences
+      final ContentFilterService filterService = ContentFilterService();
+      filterService.clearCache(); // Force a refresh of the cache
+      
+      // Also update SharedPreferences directly to ensure immediate sync
+      await _updateSharedPreferences(userId);
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Content filter settings saved')),
       );
@@ -169,6 +178,46 @@ class _ContentFilterScreenState extends State<ContentFilterScreen> {
     setState(() {
       _accessSettings[subjectId] = newValue;
     });
+  }
+  
+  /// Update SharedPreferences with the latest filter settings
+  /// This ensures settings are immediately available offline
+  Future<void> _updateSharedPreferences(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Update each subject filter setting in SharedPreferences
+      for (var entry in _accessSettings.entries) {
+        final subjectId = entry.key;
+        final isAllowed = entry.value;
+        await prefs.setBool('contentFilter_$subjectId', isAllowed);
+        
+        // Find the corresponding subject to store by name as well
+        final subject = _subjects.firstWhere(
+          (subj) => subj.id == subjectId,
+          orElse: () => SubjectFilter(
+            id: subjectId, 
+            name: '', 
+            description: '',
+            imageUrl: '',
+            ageGroup: 0,
+          ),
+        );
+        
+        if (subject.name.isNotEmpty) {
+          // Store by name as well for redundant checking
+          await prefs.setBool('contentFilter_name_${subject.name}', isAllowed);
+          print('Saved filter for "${subject.name}" (ID: $subjectId) = $isAllowed');
+        }
+      }
+      
+      // Save a timestamp for when filters were last updated
+      await prefs.setString('contentFilter_lastUpdated', DateTime.now().toIso8601String());
+      
+      print('Content filter settings updated in SharedPreferences: ${_accessSettings.length} entries');
+    } catch (e) {
+      print('Error updating SharedPreferences: $e');
+    }
   }
   
   @override

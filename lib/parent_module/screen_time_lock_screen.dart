@@ -76,13 +76,23 @@ class ScreenTimeLockScreen extends StatefulWidget {
   /// Static method to check if the app should be locked based on screen time settings
   /// Returns true if the app should be locked, false otherwise
   static Future<bool> shouldLockApp() async {
+    // Get current settings from SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
     
-    // If screen time is not enabled, app should not be locked
-    if (!screenTimeEnabled) {
-      print('Screen time not enabled, not locking');
+    // Check if screen time is enabled
+    final enabled = prefs.getBool('screenTimeEnabled') ?? false;
+    print('Screen time enabled: $enabled');
+    
+    if (!enabled) {
+      print('Screen time not enabled');
       return false;
+    }
+    
+    // Store current user ID in SharedPreferences for redundancy
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      await prefs.setString('currentUserId', currentUser.uid);
+      print('Stored current user ID in SharedPreferences: ${currentUser.uid}');
     }
     
     // Check for override first
@@ -108,7 +118,7 @@ class ScreenTimeLockScreen extends StatefulWidget {
       }
     }
     
-    // Check if we're within allowed hours
+    // Check if within allowed hours
     final startHour = prefs.getInt('startHour') ?? 8;
     final startMinute = prefs.getInt('startMinute') ?? 0;
     final endHour = prefs.getInt('endHour') ?? 20;
@@ -122,11 +132,11 @@ class ScreenTimeLockScreen extends StatefulWidget {
     final startMinutes = startHour * 60 + startMinute;
     final endMinutes = endHour * 60 + endMinute;
     
-    print('Time check: current=$currentMinutes, allowed=$startMinutes-$endMinutes');
+    print('Current time: ${currentTime.hour}:${currentTime.minute.toString().padLeft(2, '0')} ($currentMinutes min)');
+    print('Allowed hours: $startHour:${startMinute.toString().padLeft(2, '0')}-$endHour:${endMinute.toString().padLeft(2, '0')} ($startMinutes-$endMinutes min)');
     
-    // Check if current time is outside allowed hours
     if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
-      print('Outside allowed hours: current=$currentMinutes, allowed=$startMinutes-$endMinutes');
+      print('LOCK REASON: Outside allowed hours');
       return true; // Lock the app - outside allowed hours
     }
     
@@ -135,29 +145,70 @@ class ScreenTimeLockScreen extends StatefulWidget {
     final allowedDays = allowedDaysString.split(',').map((day) => day == '1').toList();
     final dayOfWeek = now.weekday % 7; // 0 = Sunday, 1 = Monday, etc.
     
+    print('Day of week: $dayOfWeek');
+    print('Allowed days: $allowedDaysString');
+    
     if (allowedDays.length > dayOfWeek && !allowedDays[dayOfWeek]) {
-      print('Not allowed on day ${dayOfWeek}');
+      print('LOCK REASON: Not allowed on this day');
       return true; // Lock the app - not an allowed day
     }
     
     // Check restricted time periods
     final restrictedPeriodsJson = prefs.getString('restrictedPeriods') ?? '[]';
+    print('Restricted periods: $restrictedPeriodsJson');
+    
     if (restrictedPeriodsJson.isNotEmpty && restrictedPeriodsJson != '[]') {
       try {
         final List<dynamic> restrictedPeriods = jsonDecode(restrictedPeriodsJson);
+        print('Number of restricted periods: ${restrictedPeriods.length}');
+        
+        // Dump raw period data for debugging
+        print('Raw periods data: $restrictedPeriods');
+        
         for (final period in restrictedPeriods) {
-          final startHour = period['startHour'] as int;
-          final startMinute = period['startMinute'] as int;
-          final endHour = period['endHour'] as int;
-          final endMinute = period['endMinute'] as int;
+          // Handle different possible formats
+          int periodStartHour;
+          int periodStartMinute;
+          int periodEndHour;
+          int periodEndMinute;
           
-          final restrictedStartMinutes = startHour * 60 + startMinute;
-          final restrictedEndMinutes = endHour * 60 + endMinute;
+          // First try direct parsing as integers
+          try {
+            periodStartHour = period['startHour'] is int ? period['startHour'] : int.parse(period['startHour'].toString());
+            periodStartMinute = period['startMinute'] is int ? period['startMinute'] : int.parse(period['startMinute'].toString());
+            periodEndHour = period['endHour'] is int ? period['endHour'] : int.parse(period['endHour'].toString());
+            periodEndMinute = period['endMinute'] is int ? period['endMinute'] : int.parse(period['endMinute'].toString());
+          } catch (e) {
+            // Alternate format might be a TimeOfDay serialized as a string like "06:00"
+            try {
+              if (period['startTime'] != null && period['endTime'] != null) {
+                final startParts = period['startTime'].toString().split(':');
+                final endParts = period['endTime'].toString().split(':');
+                
+                periodStartHour = int.parse(startParts[0]);
+                periodStartMinute = int.parse(startParts[1]);
+                periodEndHour = int.parse(endParts[0]);
+                periodEndMinute = int.parse(endParts[1]);
+              } else {
+                print('Invalid period format: $period');
+                continue; // Skip this period
+              }
+            } catch (e2) {
+              print('Could not parse period in any format: $e2');
+              continue; // Skip this period
+            }
+          }
           
-          // Check if current time is within a restricted period
+          final restrictedStartMinutes = periodStartHour * 60 + periodStartMinute;
+          final restrictedEndMinutes = periodEndHour * 60 + periodEndMinute;
+          
+          print('Checking restricted period: $periodStartHour:${periodStartMinute.toString().padLeft(2, '0')}-$periodEndHour:${periodEndMinute.toString().padLeft(2, '0')}');
+          print('Current minutes: $currentMinutes, Restricted: $restrictedStartMinutes - $restrictedEndMinutes');
+          
+          // Check if current time falls within the restricted period
           if (currentMinutes >= restrictedStartMinutes && currentMinutes <= restrictedEndMinutes) {
-            print('In restricted period: $restrictedStartMinutes-$restrictedEndMinutes');
-            return true;
+            print('LOCK REASON: In restricted period $periodStartHour:${periodStartMinute.toString().padLeft(2, '0')} - $periodEndHour:${periodEndMinute.toString().padLeft(2, '0')}');
+            return true; // Lock the app - in restricted period
           }
         }
       } catch (e) {
@@ -165,27 +216,21 @@ class ScreenTimeLockScreen extends StatefulWidget {
       }
     }
     
-    // Check if daily time limit is reached
+    // Check if daily limit is reached
     final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
     final maxHoursPerDay = prefs.getDouble('maxHoursPerDay') ?? 2.0;
     final maxMinutesPerDay = (maxHoursPerDay * 60).toInt();
     
+    print('Used time today: $usedMinutesToday / $maxMinutesPerDay minutes');
+    
     if (usedMinutesToday >= maxMinutesPerDay) {
-      print('Daily limit reached: used=$usedMinutesToday, max=$maxMinutesPerDay');
+      print('LOCK REASON: Daily time limit reached');
       return true; // Lock the app - daily limit reached
     }
     
-    // Update the last active time for tracking usage
-    final lastActiveDate = prefs.getString('lastActiveDate') ?? '';
-    final today = DateFormat('yyyy-MM-dd').format(now);
-    
-    // If it's a new day, reset the used time
-    if (lastActiveDate != today) {
-      await prefs.setInt('screenTimeUsedToday', 0);
-      await prefs.setString('lastActiveDate', today);
-    }
-    
-    // If we get here, the app shouldn't be locked
+    // All checks passed, app should not be locked
+    print('All checks passed, app should not be locked');
+    print('=================================');
     return false;
   }
   
@@ -195,27 +240,29 @@ class ScreenTimeLockScreen extends StatefulWidget {
     final prefs = await SharedPreferences.getInstance();
     final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
     
-    if (!screenTimeEnabled) return;
+    if (!screenTimeEnabled) return; // Don't track if screen time is disabled
     
-    final now = DateTime.now();
-    final today = DateFormat('yyyy-MM-dd').format(now);
-    final lastActiveDate = prefs.getString('lastActiveDate') ?? '';
+    // Get the last active date
+    final lastActiveDateStr = prefs.getString('screenTimeLastActiveDate');
+    final today = DateTime.now().toIso8601String().split('T')[0]; // Just get YYYY-MM-DD part
     
-    // If it's a new day, reset the used time
-    if (lastActiveDate != today) {
+    if (lastActiveDateStr != today) {
+      // New day, reset the counter
       await prefs.setInt('screenTimeUsedToday', 0);
-      await prefs.setString('lastActiveDate', today);
-      return;
+      await prefs.setString('screenTimeLastActiveDate', today);
+      print('New day detected, reset screen time counter');
+    } else {
+      // Same day, increment the counter (1 minute)
+      final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
+      await prefs.setInt('screenTimeUsedToday', usedMinutesToday + 1);
+      
+      // Log every 5 minutes
+      if (usedMinutesToday % 5 == 0) {
+        print('Screen time used today: $usedMinutesToday minutes');
+      }
     }
-    
-    // Increment used time (1 minute)
-    final usedMinutesToday = prefs.getInt('screenTimeUsedToday') ?? 0;
-    await prefs.setInt('screenTimeUsedToday', usedMinutesToday + 1);
-    await prefs.setString('lastActiveDate', today);
-    
-    print('Screen time used today: ${usedMinutesToday + 1} minutes');
   }
-
+  
   @override
   State<ScreenTimeLockScreen> createState() => _ScreenTimeLockScreenState();
 }
@@ -226,6 +273,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
   bool _isVerifying = false;
   String _errorMessage = '';
   String _lockReason = '';
+  String _lockDetails = '';
   DateTime? _nextAvailableTime;
   Timer? _screenTimeTracker;
   Timer? _lockChecker;
@@ -260,7 +308,10 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
   
   Future<void> _determineLockReason() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    print('\n===== SCREEN TIME LOCK DEBUG INFO =====');
     final screenTimeEnabled = prefs.getBool('screenTimeEnabled') ?? false;
+    print('Screen time enabled: $screenTimeEnabled');
     
     // Check for override first
     final overrideUntilStr = prefs.getString('screenTimeOverrideUntil');
@@ -289,6 +340,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
     if (!screenTimeEnabled) {
       setState(() {
         _lockReason = 'App is currently locked by parent.';
+        _lockDetails = 'Please ask a parent to unlock the app.';
       });
       return;
     }
@@ -309,9 +361,14 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
     final startMinutes = startTime.hour * 60 + startTime.minute;
     final endMinutes = endTime.hour * 60 + endTime.minute;
     
+    // Add debug information for time checks
+    print('Current time: ${_formatTime(currentTime)} ($currentMinutes minutes)');
+    print('Allowed hours: ${_formatTime(startTime)} - ${_formatTime(endTime)} ($startMinutes-$endMinutes minutes)');
+    
     // Check if current time is outside allowed hours
     if (currentMinutes < startMinutes) {
       // Too early
+      print('LOCK REASON: Too early - outside allowed hours');
       final nextAvailable = DateTime(
         now.year, 
         now.month, 
@@ -322,11 +379,13 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
       
       setState(() {
         _lockReason = 'App is locked until ${_formatTime(startTime)}.';
+        _lockDetails = 'The app will be available at ${_formatTime(startTime)}.';
         _nextAvailableTime = nextAvailable;
       });
       return;
     } else if (currentMinutes > endMinutes) {
       // Too late
+      print('LOCK REASON: Too late - outside allowed hours');
       final nextAvailable = DateTime(
         now.year, 
         now.month, 
@@ -336,7 +395,8 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
       );
       
       setState(() {
-        _lockReason = 'App is locked for today. Available again tomorrow at ${_formatTime(startTime)}.';
+        _lockReason = 'App is locked for today.';
+        _lockDetails = 'Available again tomorrow at ${_formatTime(startTime)}.';
         _nextAvailableTime = nextAvailable;
       });
       return;
@@ -347,18 +407,31 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
     final allowedDays = allowedDaysString.split(',').map((day) => day == '1').toList();
     final dayOfWeek = now.weekday % 7; // 0 = Sunday, 1 = Monday, etc.
     
-    if (!allowedDays[dayOfWeek]) {
+    // Add debug information for day checks
+    print('Day of week: $dayOfWeek (${_getDayName(dayOfWeek)})');
+    print('Allowed days: $allowedDaysString');
+    print('Is today allowed? ${allowedDays.length > dayOfWeek && allowedDays[dayOfWeek]}');
+    
+    if (allowedDays.length > dayOfWeek && !allowedDays[dayOfWeek]) {
+      print('LOCK REASON: Not allowed on this day');
       setState(() {
         _lockReason = 'App is not available on ${_getDayName(dayOfWeek)}.';
+        _lockDetails = 'The app is only available on: ${allowedDays.asMap().entries.where((e) => e.value).map((e) => _getDayName(e.key)).join(', ')}.';
       });
       return;
     }
     
     // Check restricted time periods
     final restrictedPeriodsJson = prefs.getString('restrictedPeriods') ?? '[]';
+    
+    // Add debug information for restricted periods
+    print('Restricted periods: $restrictedPeriodsJson');
+    
     if (restrictedPeriodsJson.isNotEmpty && restrictedPeriodsJson != '[]') {
       try {
         final List<dynamic> restrictedPeriods = jsonDecode(restrictedPeriodsJson);
+        print('Number of restricted periods: ${restrictedPeriods.length}');
+        
         for (final period in restrictedPeriods) {
           final startHour = period['startHour'] as int;
           final startMinute = period['startMinute'] as int;
@@ -368,16 +441,17 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
           final restrictedStartMinutes = startHour * 60 + startMinute;
           final restrictedEndMinutes = endHour * 60 + endMinute;
           
-          // Check if current time is within a restricted period
+          // Format the restricted period times for display
+          final restrictedStartTime = TimeOfDay(hour: startHour, minute: startMinute);
+          final restrictedEndTime = TimeOfDay(hour: endHour, minute: endMinute);
+          
+          print('Checking restricted period: ${_formatTime(restrictedStartTime)} - ${_formatTime(restrictedEndTime)}');
+          
           if (currentMinutes >= restrictedStartMinutes && currentMinutes <= restrictedEndMinutes) {
-            print('In restricted period: $restrictedStartMinutes-$restrictedEndMinutes');
-            
-            // Format the restricted period times for display
-            final restrictedStartTime = TimeOfDay(hour: startHour, minute: startMinute);
-            final restrictedEndTime = TimeOfDay(hour: endHour, minute: endMinute);
-            
+            print('LOCK REASON: In restricted period');
             setState(() {
-              _lockReason = 'App is locked during restricted hours (${_formatTime(restrictedStartTime)} - ${_formatTime(restrictedEndTime)}).';
+              _lockReason = 'App is locked during restricted hours.';
+              _lockDetails = 'Current restricted period: ${_formatTime(restrictedStartTime)} - ${_formatTime(restrictedEndTime)}';
               _nextAvailableTime = DateTime(
                 now.year,
                 now.month,
@@ -399,80 +473,82 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
     final maxHoursPerDay = prefs.getDouble('maxHoursPerDay') ?? 2.0;
     final maxMinutesPerDay = (maxHoursPerDay * 60).toInt();
     
+    // Add debug information for daily limit
+    print('Used minutes today: $usedMinutesToday / $maxMinutesPerDay');
+    print('Daily limit: ${maxHoursPerDay.toStringAsFixed(1)} hours');
+    
     if (usedMinutesToday >= maxMinutesPerDay) {
+      print('LOCK REASON: Daily time limit reached');
       setState(() {
-        _lockReason = 'Daily screen time limit (${maxHoursPerDay.toStringAsFixed(1)} hours) reached.';
+        _lockReason = 'Daily screen time limit reached.';
+        _lockDetails = 'Used today: ${(usedMinutesToday / 60).toStringAsFixed(1)} hours\nLimit: ${maxHoursPerDay.toStringAsFixed(1)} hours';
       });
       return;
     }
     
+    print('No lock reason detected but lock screen is showing!');
+    print('====================================');
+    
     // If we get here, the app should be unlocked
     widget.onUnlock();
   }
-  
+
+  // Format TimeOfDay to a readable string (e.g., "8:05 AM")
   String _formatTime(TimeOfDay time) {
-    final now = DateTime.now();
-    final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    final format = DateFormat.jm();  // 5:08 PM
-    return format.format(dt);
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:${time.minute.toString().padLeft(2, '0')} $period';
   }
   
+  // Get the day name from a day of week index
   String _getDayName(int dayOfWeek) {
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return dayNames[dayOfWeek];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[dayOfWeek];
   }
   
+  // Verify the parent password to unlock the app
   Future<void> _verifyParentPassword() async {
     if (!_formKey.currentState!.validate()) return;
-
+    
     setState(() {
       _isVerifying = true;
       _errorMessage = '';
     });
-
+    
     try {
-      // Get the current user's ID
-      final currentUser = FirebaseAuth.instance.currentUser;
+      // First check if we can get the parent user
+      final FirebaseAuth auth = FirebaseAuth.instance;
+      final User? currentUser = auth.currentUser;
       final String profileId = currentUser?.uid ?? widget.userId;
       
-      // Get the parent password from Firestore
-      final userDoc = await FirebaseFirestore.instance
+      // Get parent password from Firestore
+      final parentProfileDoc = await FirebaseFirestore.instance
           .collection('profiles')
           .doc(profileId)
           .get();
-
-      if (!userDoc.exists) {
-        // Try default verification if profile doesn't exist
+      
+      if (parentProfileDoc.exists) {
+        // For demo purposes, accept a hardcoded password or the one from the database
+        // In a real app, you'd want to properly secure this
         if (_passwordController.text == '123456') {
-          _unlockApp();
+          _unlockApp(minutes: 60); // Unlock for 60 minutes
           return;
         }
         
-        setState(() {
-          _errorMessage = 'User profile not found';
-          _isVerifying = false;
-        });
-        return;
-      }
-
-      final data = userDoc.data()!;
-      
-      // Use the parent IC as the primary verification method
-      final parentIC = data['parentIC'] as String?;
-      final customPassword = data['parentPassword'] as String?;
-      
-      // If IC is not available, fall back to custom password or default
-      final validCredentials = [
-        parentIC,
-        customPassword,
-        '123456' // Last resort default
-      ].where((pwd) => pwd != null && pwd.isNotEmpty).toList();
-      
-      if (validCredentials.contains(_passwordController.text)) {
-        _showUnlockOptions();
+        // Check stored passwords/credentials from Firestore
+        final List<dynamic> validCredentials = parentProfileDoc.data()?['parentPassword'] ?? [];
+        
+        if (validCredentials.contains(_passwordController.text)) {
+          _unlockApp(minutes: 60); // Unlock for 60 minutes
+        } else {
+          setState(() {
+            _errorMessage = 'Incorrect password';
+            _isVerifying = false;
+          });
+        }
       } else {
         setState(() {
-          _errorMessage = 'Incorrect password';
+          _errorMessage = 'User profile not found';
           _isVerifying = false;
         });
       }
@@ -484,128 +560,168 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
     }
   }
   
-  void _showUnlockOptions() {
+  // Show unlock options dialog
+  Future<void> _showUnlockOptions() async {
     setState(() => _isVerifying = false);
     
-    showDialog(
+    await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unlock Options'),
-        content: const Text('How long would you like to unlock the app for?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.timer_10),
+              title: const Text('10 Minutes'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _unlockApp(minutes: 10);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('30 Minutes'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _unlockApp(minutes: 30);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer),
+              title: const Text('1 Hour'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _unlockApp(minutes: 60);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.nightlight),
+              title: const Text('Until End of Day'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _unlockApp(untilEndOfDay: true);
+              },
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _unlockApp(minutes: 15);
-            },
-            child: const Text('15 minutes'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _unlockApp(minutes: 60);
-            },
-            child: const Text('1 hour'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _unlockApp(untilEndOfDay: true);
-            },
-            child: const Text('Rest of the day'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
         ],
       ),
     );
   }
   
+  // Unlock the app for a specified duration
   Future<void> _unlockApp({int minutes = 0, bool untilEndOfDay = false}) async {
     final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
     
+    // Set the override until time
     if (untilEndOfDay) {
-      // Set an override until the end of the day
-      final now = DateTime.now();
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
       await prefs.setString('screenTimeOverrideUntil', endOfDay.toIso8601String());
     } else if (minutes > 0) {
-      // Set a timed override
-      final now = DateTime.now();
       final overrideUntil = now.add(Duration(minutes: minutes));
       await prefs.setString('screenTimeOverrideUntil', overrideUntil.toIso8601String());
     }
     
-    // Call the onUnlock callback
+    // Unlock the app
     widget.onUnlock();
   }
   
   @override
   Widget build(BuildContext context) {
+    // Don't use MaterialApp inside another MaterialApp
+    // This prevents the Directionality error
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/rainbow.png'),
-            fit: BoxFit.cover,
-            opacity: 0.3,
+        backgroundColor: Colors.transparent,
+        body: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.orange.shade700,
+                Colors.orange.shade300,
+              ],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+          child: SafeArea(
+            child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Lock Icon
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.lock_outline,
-                      size: 64,
-                      color: Colors.orange.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  // Top Spacer
+                  const Spacer(flex: 1),
                   
-                  // Lock Title
-                  const Text(
-                    'App Locked',
-                    style: TextStyle(
+                  // Lock Icon and Title
+                  const Icon(
+                    Icons.lock_clock,
+                    size: 100,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Screen Time Limit',
+                    style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 16),
                   
-                  // Lock Reason
-                  Text(
-                    _lockReason,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
+                  // Lock Reason Display
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _lockReason,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _lockDetails,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        if (_nextAvailableTime != null) ...[  
+                          const SizedBox(height: 16),
+                          Text(
+                            'Available again: ${DateFormat('EEEE, MMM d, h:mm a').format(_nextAvailableTime!)}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  
-                  // Next Available Time
-                  if (_nextAvailableTime != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Available again: ${DateFormat('EEEE, MMM d, h:mm a').format(_nextAvailableTime!)}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.orange.shade700,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                  
                   const SizedBox(height: 32),
+                  
+                  // Middle Spacer
+                  const Spacer(flex: 1),
                   
                   // Parent Unlock Section
                   Container(
@@ -632,7 +748,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Please enter your parent IC Number to unlock',
+                          'Please enter your parent password to unlock',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.grey,
@@ -648,7 +764,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                               filled: true,
                               fillColor: Colors.grey.shade100,
                               hintText: 'Enter parent password',
-                              prefixIcon: const Icon(Icons.person),
+                              prefixIcon: const Icon(Icons.lock),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -657,7 +773,7 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your IC number ';
+                                return 'Please enter your password';
                               }
                               return null;
                             },
@@ -691,12 +807,14 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
                       ],
                     ),
                   ),
+                  
+                  // Bottom Spacer
+                  const Spacer(flex: 1),
                 ],
               ),
             ),
           ),
         ),
-      ),
     );
   }
 }

@@ -19,6 +19,27 @@ class Game {
     required this.ageGroup,
     this.gameContent,
   });
+  
+  // Create a copy of the game with optional new values
+  Game copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? type,
+    List<GameAsset>? assets,
+    int? ageGroup,
+    Map<String, dynamic>? gameContent,
+  }) {
+    return Game(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      type: type ?? this.type,
+      assets: assets ?? this.assets,
+      ageGroup: ageGroup ?? this.ageGroup,
+      gameContent: gameContent ?? this.gameContent,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> json = {

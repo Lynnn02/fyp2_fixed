@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/background_container.dart';
 import '../widgets/custom_button.dart';
@@ -45,9 +46,25 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _password.text.trim(),
       );
 
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final uid = currentUser?.uid;
       if (uid != null) {
+        // Store user ID and email in SharedPreferences for reliable access
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('currentUserId', uid);
+        await prefs.setString('currentUserEmail', currentUser?.email ?? '');
+        await prefs.setString('currentUserDisplayName', currentUser?.displayName ?? '');
+        await prefs.setBool('isUserLoggedIn', true);
+        print('Stored user credentials in SharedPreferences: User ID = $uid, Email = ${currentUser?.email}');
+        
         final doc = await FirebaseFirestore.instance.collection('profiles').doc(uid).get();
+        
+        // If profile exists, also store the username
+        if (doc.exists && doc.data() != null) {
+          final username = doc.data()?['name'] as String? ?? '';
+          await prefs.setString('currentUsername', username);
+          print('Stored username in SharedPreferences: $username');
+        }
 
         // If the user is an admin, redirect them to the Admin Home Screen
         if (_email.text.trim() == 'admin@gmail.com') {
@@ -106,8 +123,22 @@ class _LoginScreenState extends State<LoginScreen> {
         accessToken: googleAuth.accessToken,
       );
       await FirebaseAuth.instance.signInWithCredential(credential);
-
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      
+      // Store user ID and Google info in SharedPreferences
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final uid = currentUser?.uid;
+      
+      if (uid != null) {
+        // Store user credentials in SharedPreferences for reliable access
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('currentUserId', uid);
+        await prefs.setString('currentUserEmail', currentUser?.email ?? '');
+        await prefs.setString('currentUserDisplayName', currentUser?.displayName ?? '');
+        await prefs.setBool('isUserLoggedIn', true);
+        print('Stored Google user credentials in SharedPreferences: User ID = $uid, Email = ${currentUser?.email}, Name = ${currentUser?.displayName}');
+      }
+      
+      // Navigate to appropriate module based on profile
       final doc = await FirebaseFirestore.instance.collection('profiles').doc(uid).get();
       
       if (doc.exists) {
