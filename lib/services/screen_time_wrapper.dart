@@ -75,44 +75,15 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
       return;
     }
 
-    // Try multiple ways to determine if a user is logged in
-    final prefs = await SharedPreferences.getInstance();
-    final bool isLoggedIn = prefs.getBool('isUserLoggedIn') ?? false;
-    
-    // Get current user ID - first try from FirebaseAuth
+    // Get current user ID - first try from FirebaseAuth, then try from SharedPreferences
     final currentUser = FirebaseAuth.instance.currentUser;
     _userId = currentUser?.uid;
     
-    // If no user ID from Firebase Auth, try multiple backup methods
+    // If no user ID from Firebase Auth, check SharedPreferences
     if (_userId == null) {
-      // Try user ID from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
       _userId = prefs.getString('currentUserId');
       print('Getting userId from SharedPreferences: $_userId');
-      
-      // If still null, check for username or email
-      if (_userId == null) {
-        final username = prefs.getString('currentUsername');
-        final email = prefs.getString('currentUserEmail');
-        final displayName = prefs.getString('currentUserDisplayName');
-        
-        // Use any available user identifier
-        if (username != null && username.isNotEmpty) {
-          print('Using username as identifier: $username');
-          _userId = 'username:$username'; // Create a pseudo-ID from username
-        } else if (email != null && email.isNotEmpty) {
-          print('Using email as identifier: $email');
-          _userId = 'email:$email'; // Create a pseudo-ID from email
-        } else if (displayName != null && displayName.isNotEmpty) {
-          print('Using display name as identifier: $displayName');
-          _userId = 'name:$displayName'; // Create a pseudo-ID from name
-        }
-      }
-    }
-    
-    // If we have explicit isLoggedIn=true but no userId, create a generic one
-    if (_userId == null && isLoggedIn) {
-      _userId = 'logged_in_user';
-      print('Using generic logged_in_user ID since isLoggedIn=true');
     }
 
     if (_userId == null) {
@@ -134,38 +105,11 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
   }
 
   Future<void> _checkScreenTimeLimits() async {
-    // Try to get user identification through multiple methods
+    // Even if _userId is null, try to get it from SharedPreferences again
     if (_userId == null) {
       final prefs = await SharedPreferences.getInstance();
-      
-      // Check all possible user identifiers
       _userId = prefs.getString('currentUserId');
-      final bool isLoggedIn = prefs.getBool('isUserLoggedIn') ?? false;
-      
-      if (_userId == null) {
-        final username = prefs.getString('currentUsername');
-        final email = prefs.getString('currentUserEmail');
-        final displayName = prefs.getString('currentUserDisplayName');
-        
-        // Use any available user identifier
-        if (username != null && username.isNotEmpty) {
-          _userId = 'username:$username';
-        } else if (email != null && email.isNotEmpty) {
-          _userId = 'email:$email';
-        } else if (displayName != null && displayName.isNotEmpty) {
-          _userId = 'name:$displayName';
-        } else if (isLoggedIn) {
-          _userId = 'logged_in_user';
-        }
-        
-        print('Re-checking user ID from multiple sources: $_userId');
-      }
-    }
-    
-    // Also check current Firebase user as a backup
-    if (_userId == null) {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      _userId = currentUser?.uid;
+      print('Re-checking userId from SharedPreferences: $_userId');
     }
     
     if (!widget.enforceScreenTime || _userId == null) {
@@ -176,8 +120,8 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
       return;
     }
     
-    // User is identified, proceed with screen time checks
-    print('Screen time check for identified user: $_userId');
+    // Now we have a valid user ID and screen time is enforced
+    print('Screen time check for user: $_userId');
 
     // Debug check current settings
     final prefs = await SharedPreferences.getInstance();
