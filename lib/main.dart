@@ -77,9 +77,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ScreenTimeWrapper(
-      enforceScreenTime: true,
-      child: MaterialApp(
+    return MaterialApp(
+      builder: (context, child) {
+        return ScreenTimeWrapper(
+          enforceScreenTime: true,
+          child: child!,
+        );
+      },
       debugShowCheckedModeBanner: false,
       title: 'Little Explorers',
       theme: ThemeData(
@@ -299,7 +303,6 @@ class MyApp extends StatelessWidget {
           },
         ),
       },
-    ),
     );
   }
 }
