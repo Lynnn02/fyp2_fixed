@@ -351,68 +351,68 @@ class FlashcardTemplateGenerator {
   
   // Generate Malay letters flashcards
   static List<Map<String, dynamic>> _generateMalayLettersFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'Ayam',
-        'letter': 'Aa',
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'Ayam',
+      'letter': 'Aa',
         'description': 'Ayam berkaki dua.',
-        'image_asset': 'assets/flashcards/malay/ayam.png',
-      },
-      {
-        'title': 'Bola',
-        'letter': 'Bb',
+      'image_asset': 'assets/flashcards/malay/ayam.png',
+    },
+    {
+      'title': 'Bola',
+      'letter': 'Bb',
         'description': 'Bola berbentuk bulat.',
-        'image_asset': 'assets/flashcards/malay/bola.png',
-      },
-      {
-        'title': 'Cacing',
-        'letter': 'Cc',
+      'image_asset': 'assets/flashcards/malay/bola.png',
+    },
+    {
+      'title': 'Cacing',
+      'letter': 'Cc',
         'description': 'Cacing tiada kaki.',
-        'image_asset': 'assets/flashcards/malay/cacing.png',
-      },
-      {
-        'title': 'Durian',
-        'letter': 'Dd',
+      'image_asset': 'assets/flashcards/malay/cacing.png',
+    },
+    {
+      'title': 'Durian',
+      'letter': 'Dd',
         'description': 'Durian berbau kuat.',
-        'image_asset': 'assets/flashcards/malay/durian.png',
-      },
-      {
-        'title': 'Epal',
-        'letter': 'Ee',
+      'image_asset': 'assets/flashcards/malay/durian.png',
+    },
+    {
+      'title': 'Epal',
+      'letter': 'Ee',
         'description': 'Epal berwarna merah.',
-        'image_asset': 'assets/flashcards/malay/epal.png',
-      },
-      {
-        'title': 'Foto',
-        'letter': 'Ff',
+      'image_asset': 'assets/flashcards/malay/epal.png',
+    },
+    {
+      'title': 'Foto',
+      'letter': 'Ff',
         'description': 'Foto merakam gambar.',
-        'image_asset': 'assets/flashcards/malay/foto.png',
-      },
-      {
-        'title': 'Gajah',
-        'letter': 'Gg',
+      'image_asset': 'assets/flashcards/malay/foto.png',
+    },
+    {
+      'title': 'Gajah',
+      'letter': 'Gg',
         'description': 'Gajah mempunyai belalai.',
-        'image_asset': 'assets/flashcards/malay/gajah.png',
-      },
-      {
-        'title': 'Harimau',
-        'letter': 'Hh',
+      'image_asset': 'assets/flashcards/malay/gajah.png',
+    },
+    {
+      'title': 'Harimau',
+      'letter': 'Hh',
         'description': 'Harimau mempunyai belang.',
-        'image_asset': 'assets/flashcards/malay/harimau.png',
-      },
-      {
-        'title': 'Ikan',
-        'letter': 'Ii',
+      'image_asset': 'assets/flashcards/malay/harimau.png',
+    },
+    {
+      'title': 'Ikan',
+      'letter': 'Ii',
         'description': 'Ikan bernafas dengan insang.',
-        'image_asset': 'assets/flashcards/malay/ikan.png',
-      },
-      {
-        'title': 'Jeruk',
-        'letter': 'Jj',
+      'image_asset': 'assets/flashcards/malay/ikan.png',
+    },
+    {
+      'title': 'Jeruk',
+      'letter': 'Jj',
         'description': 'Jeruk rasanya masam.',
-        'image_asset': 'assets/flashcards/malay/jeruk.png',
-      },
+      'image_asset': 'assets/flashcards/malay/jeruk.png',
+    },
       {
         'title': 'Kucing',
         'letter': 'Kk',
@@ -452,207 +452,423 @@ class FlashcardTemplateGenerator {
     ];
     
     print('Generating $count flashcards for age $age');
-    return flashcards.take(count).toList();
-  }
-  
+  return flashcards.take(count).toList();
+}
+
   // Generate Malay simple words flashcards
   static List<Map<String, dynamic>> _generateMalaySimpleWordsFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'Saya',
-        'letter': 'Sa',
-        'description': 'Saya bermaksud diri sendiri.',
-        'image_asset': 'assets/flashcards/malay/saya.png',
-      },
-      {
-        'title': 'Kamu',
-        'letter': 'Ka',
-        'description': 'Kamu bermaksud orang yang diajak bicara.',
-        'image_asset': 'assets/flashcards/malay/kamu.png',
-      },
-      {
-        'title': 'Makan',
-        'letter': 'Ma',
-        'description': 'Makan adalah perbuatan memasukkan makanan ke dalam mulut.',
-        'image_asset': 'assets/flashcards/malay/makan.png',
-      },
-      {
-        'title': 'Minum',
-        'letter': 'Mi',
-        'description': 'Minum adalah perbuatan memasukkan air ke dalam mulut.',
-        'image_asset': 'assets/flashcards/malay/minum.png',
-      },
-    ];
-    
-    return flashcards.take(count).toList();
-  }
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'Saya',
+      'letter': 'Sa',
+      'description': 'Saya bermaksud diri sendiri.',
+      'image_asset': 'assets/flashcards/malay/saya.png',
+    },
+    {
+      'title': 'Kamu',
+      'letter': 'Ka',
+      'description': 'Kamu bermaksud orang yang diajak bicara.',
+      'image_asset': 'assets/flashcards/malay/kamu.png',
+    },
+    {
+      'title': 'Makan',
+      'letter': 'Ma',
+      'description': 'Makan adalah perbuatan memasukkan makanan ke dalam mulut.',
+      'image_asset': 'assets/flashcards/malay/makan.png',
+    },
+    {
+      'title': 'Minum',
+      'letter': 'Mi',
+      'description': 'Minum adalah perbuatan memasukkan air ke dalam mulut.',
+      'image_asset': 'assets/flashcards/malay/minum.png',
+    },
+    {
+      'title': 'Tidur',
+      'letter': 'Ti',
+      'description': 'Tidur adalah masa untuk rehat dan memulihkan tenaga.',
+      'image_asset': 'assets/flashcards/malay/tidur.png',
+    },
+    {
+      'title': 'Baca',
+      'letter': 'Ba',
+      'description': 'Baca adalah aktiviti melihat dan memahami tulisan.',
+      'image_asset': 'assets/flashcards/malay/baca.png',
+    },
+    {
+      'title': 'Tulis',
+      'letter': 'Tu',
+      'description': 'Tulis adalah aktiviti mencatat huruf di atas kertas.',
+      'image_asset': 'assets/flashcards/malay/tulis.png',
+    },
+    {
+      'title': 'Lari',
+      'letter': 'La',
+      'description': 'Lari adalah bergerak dengan kaki dengan cepat.',
+      'image_asset': 'assets/flashcards/malay/lari.png',
+    },
+    {
+      'title': 'Main',
+      'letter': 'Ma',
+      'description': 'Main adalah aktiviti yang menyeronokkan untuk kanak-kanak.',
+      'image_asset': 'assets/flashcards/malay/main.png',
+    },
+    {
+      'title': 'Suka',
+      'letter': 'Su',
+      'description': 'Suka adalah rasa gembira terhadap sesuatu.',
+      'image_asset': 'assets/flashcards/malay/suka.png',
+    },
+  ];
   
+  return flashcards.take(count).toList();
+}
+
   // Generate English alphabet flashcards
   static List<Map<String, dynamic>> _generateEnglishAlphabetFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'Apple',
-        'letter': 'Aa',
-        'description': 'A is for Apple, a red fruit that grows on trees.',
-        'image_asset': 'assets/flashcards/english/apple.png',
-      },
-      {
-        'title': 'Ball',
-        'letter': 'Bb',
-        'description': 'B is for Ball, a round toy that bounces.',
-        'image_asset': 'assets/flashcards/english/ball.png',
-      },
-      {
-        'title': 'Cat',
-        'letter': 'Cc',
-        'description': 'C is for Cat, a furry pet that meows.',
-        'image_asset': 'assets/flashcards/english/cat.png',
-      },
-      {
-        'title': 'Dog',
-        'letter': 'Dd',
-        'description': 'D is for Dog, a friendly pet that barks.',
-        'image_asset': 'assets/flashcards/english/dog.png',
-      },
-    ];
-    
-    return flashcards.take(count).toList();
-  }
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'Apple',
+      'letter': 'Aa',
+      'description': 'A is for Apple, a red fruit that grows on trees.',
+      'image_asset': 'assets/flashcards/english/apple.png',
+    },
+    {
+      'title': 'Ball',
+      'letter': 'Bb',
+      'description': 'B is for Ball, a round toy that bounces.',
+      'image_asset': 'assets/flashcards/english/ball.png',
+    },
+    {
+      'title': 'Cat',
+      'letter': 'Cc',
+      'description': 'C is for Cat, a furry pet that meows.',
+      'image_asset': 'assets/flashcards/english/cat.png',
+    },
+    {
+      'title': 'Dog',
+      'letter': 'Dd',
+      'description': 'D is for Dog, a friendly pet that barks.',
+      'image_asset': 'assets/flashcards/english/dog.png',
+    },
+    {
+      'title': 'Elephant',
+      'letter': 'Ee',
+      'description': 'E is for Elephant, a large animal with a long trunk.',
+      'image_asset': 'assets/flashcards/english/elephant.png',
+    },
+    {
+      'title': 'Fish',
+      'letter': 'Ff',
+      'description': 'F is for Fish, an animal that lives in water.',
+      'image_asset': 'assets/flashcards/english/fish.png',
+    },
+    {
+      'title': 'Goat',
+      'letter': 'Gg',
+      'description': 'G is for Goat, an animal that lives on a farm.',
+      'image_asset': 'assets/flashcards/english/goat.png',
+    },
+    {
+      'title': 'House',
+      'letter': 'Hh',
+      'description': 'H is for House, a place where people live.',
+      'image_asset': 'assets/flashcards/english/house.png',
+    },
+    {
+      'title': 'Ice Cream',
+      'letter': 'Ii',
+      'description': 'I is for Ice Cream, a cold sweet treat.',
+      'image_asset': 'assets/flashcards/english/ice_cream.png',
+    },
+    {
+      'title': 'Jacket',
+      'letter': 'Jj',
+      'description': 'J is for Jacket, clothing that keeps you warm.',
+      'image_asset': 'assets/flashcards/english/jacket.png',
+    },
+  ];
   
+  return flashcards.take(count).toList();
+}
+
   // Generate English sight words flashcards
   static List<Map<String, dynamic>> _generateEnglishSightWordsFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'The',
-        'letter': 'Th',
-        'description': 'The is used before specific or particular nouns.',
-        'image_asset': 'assets/flashcards/english/the.png',
-      },
-      {
-        'title': 'And',
-        'letter': 'An',
-        'description': 'And is used to connect words or groups of words.',
-        'image_asset': 'assets/flashcards/english/and.png',
-      },
-      {
-        'title': 'A',
-        'letter': 'Aa',
-        'description': 'A is used before nouns that begin with a consonant sound.',
-        'image_asset': 'assets/flashcards/english/a.png',
-      },
-      {
-        'title': 'To',
-        'letter': 'To',
-        'description': 'To is used to express motion in the direction of a place.',
-        'image_asset': 'assets/flashcards/english/to.png',
-      },
-    ];
-    
-    return flashcards.take(count).toList();
-  }
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'The',
+      'letter': 'Th',
+      'description': 'The is used before specific or particular nouns.',
+      'image_asset': 'assets/flashcards/english/the.png',
+    },
+    {
+      'title': 'And',
+      'letter': 'An',
+      'description': 'And is used to connect words or groups of words.',
+      'image_asset': 'assets/flashcards/english/and.png',
+    },
+    {
+      'title': 'A',
+      'letter': 'Aa',
+      'description': 'A is used before nouns that begin with a consonant sound.',
+      'image_asset': 'assets/flashcards/english/a.png',
+    },
+    {
+      'title': 'To',
+      'letter': 'To',
+      'description': 'To is used to express motion in the direction of a place.',
+      'image_asset': 'assets/flashcards/english/to.png',
+    },
+    {
+      'title': 'In',
+      'letter': 'In',
+      'description': 'In is used to indicate location or position within something.',
+      'image_asset': 'assets/flashcards/english/in.png',
+    },
+    {
+      'title': 'Is',
+      'letter': 'Is',
+      'description': 'Is means to exist or to be.',
+      'image_asset': 'assets/flashcards/english/is.png',
+    },
+    {
+      'title': 'You',
+      'letter': 'Yo',
+      'description': 'You refers to the person being addressed.',
+      'image_asset': 'assets/flashcards/english/you.png',
+    },
+    {
+      'title': 'That',
+      'letter': 'Th',
+      'description': 'That is used to identify a specific person or thing.',
+      'image_asset': 'assets/flashcards/english/that.png',
+    },
+    {
+      'title': 'It',
+      'letter': 'It',
+      'description': 'It is a pronoun used to refer to a thing previously mentioned.',
+      'image_asset': 'assets/flashcards/english/it.png',
+    },
+    {
+      'title': 'He',
+      'letter': 'He',
+      'description': 'He is used to refer to a male person.',
+      'image_asset': 'assets/flashcards/english/he.png',
+    },
+  ];
   
+  return flashcards.take(count).toList();
+}
+
   // Generate counting flashcards
   static List<Map<String, dynamic>> _generateCountingFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'One',
-        'letter': '1',
-        'description': 'One is the first number in counting.',
-        'image_asset': 'assets/flashcards/math/one.png',
-      },
-      {
-        'title': 'Two',
-        'letter': '2',
-        'description': 'Two is the number after one.',
-        'image_asset': 'assets/flashcards/math/two.png',
-      },
-      {
-        'title': 'Three',
-        'letter': '3',
-        'description': 'Three is the number after two.',
-        'image_asset': 'assets/flashcards/math/three.png',
-      },
-      {
-        'title': 'Four',
-        'letter': '4',
-        'description': 'Four is the number after three.',
-        'image_asset': 'assets/flashcards/math/four.png',
-      },
-    ];
-    
-    return flashcards.take(count).toList();
-  }
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'One',
+      'letter': '1',
+      'description': 'One is the first number in counting.',
+      'image_asset': 'assets/flashcards/math/one.png',
+    },
+    {
+      'title': 'Two',
+      'letter': '2',
+      'description': 'Two is the number after one.',
+      'image_asset': 'assets/flashcards/math/two.png',
+    },
+    {
+      'title': 'Three',
+      'letter': '3',
+      'description': 'Three is the number after two.',
+      'image_asset': 'assets/flashcards/math/three.png',
+    },
+    {
+      'title': 'Four',
+      'letter': '4',
+      'description': 'Four is the number after three.',
+      'image_asset': 'assets/flashcards/math/four.png',
+    },
+    {
+      'title': 'Five',
+      'letter': '5',
+      'description': 'Five is the number after four.',
+      'image_asset': 'assets/flashcards/math/five.png',
+    },
+    {
+      'title': 'Six',
+      'letter': '6',
+      'description': 'Six is the number after five.',
+      'image_asset': 'assets/flashcards/math/six.png',
+    },
+    {
+      'title': 'Seven',
+      'letter': '7',
+      'description': 'Seven is the number after six.',
+      'image_asset': 'assets/flashcards/math/seven.png',
+    },
+    {
+      'title': 'Eight',
+      'letter': '8',
+      'description': 'Eight is the number after seven.',
+      'image_asset': 'assets/flashcards/math/eight.png',
+    },
+    {
+      'title': 'Nine',
+      'letter': '9',
+      'description': 'Nine is the number after eight.',
+      'image_asset': 'assets/flashcards/math/nine.png',
+    },
+    {
+      'title': 'Ten',
+      'letter': '10',
+      'description': 'Ten is the number after nine.',
+      'image_asset': 'assets/flashcards/math/ten.png',
+    },
+  ];
   
+  return flashcards.take(count).toList();
+}
+
   // Generate shapes and patterns flashcards
   static List<Map<String, dynamic>> _generateShapesAndPatternsFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'Circle',
-        'letter': 'Ci',
-        'description': 'A circle is a round shape with no corners.',
-        'image_asset': 'assets/flashcards/math/circle.png',
-      },
-      {
-        'title': 'Square',
-        'letter': 'Sq',
-        'description': 'A square has four equal sides and four corners.',
-        'image_asset': 'assets/flashcards/math/square.png',
-      },
-      {
-        'title': 'Triangle',
-        'letter': 'Tr',
-        'description': 'A triangle has three sides and three corners.',
-        'image_asset': 'assets/flashcards/math/triangle.png',
-      },
-      {
-        'title': 'Rectangle',
-        'letter': 'Re',
-        'description': 'A rectangle has four sides and four corners.',
-        'image_asset': 'assets/flashcards/math/rectangle.png',
-      },
-    ];
-    
-    return flashcards.take(count).toList();
-  }
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'Circle',
+      'letter': 'Ci',
+      'description': 'A circle is a round shape with no corners.',
+      'image_asset': 'assets/flashcards/math/circle.png',
+    },
+    {
+      'title': 'Square',
+      'letter': 'Sq',
+      'description': 'A square has four equal sides and four corners.',
+      'image_asset': 'assets/flashcards/math/square.png',
+    },
+    {
+      'title': 'Triangle',
+      'letter': 'Tr',
+      'description': 'A triangle has three sides and three corners.',
+      'image_asset': 'assets/flashcards/math/triangle.png',
+    },
+    {
+      'title': 'Rectangle',
+      'letter': 'Re',
+      'description': 'A rectangle has four sides and four corners.',
+      'image_asset': 'assets/flashcards/math/rectangle.png',
+    },
+    {
+      'title': 'Oval',
+      'letter': 'Ov',
+      'description': 'An oval is like a stretched circle.',
+      'image_asset': 'assets/flashcards/math/oval.png',
+    },
+    {
+      'title': 'Star',
+      'letter': 'St',
+      'description': 'A star is a shape with five or more points.',
+      'image_asset': 'assets/flashcards/math/star.png',
+    },
+    {
+      'title': 'Diamond',
+      'letter': 'Di',
+      'description': 'A diamond is a square turned on its corner.',
+      'image_asset': 'assets/flashcards/math/diamond.png',
+    },
+    {
+      'title': 'Heart',
+      'letter': 'He',
+      'description': 'A heart shape represents love and caring.',
+      'image_asset': 'assets/flashcards/math/heart.png',
+    },
+    {
+      'title': 'Pentagon',
+      'letter': 'Pe',
+      'description': 'A pentagon has five sides and five corners.',
+      'image_asset': 'assets/flashcards/math/pentagon.png',
+    },
+    {
+      'title': 'Hexagon',
+      'letter': 'He',
+      'description': 'A hexagon has six sides and six corners.',
+      'image_asset': 'assets/flashcards/math/hexagon.png',
+    },
+  ];
   
+  return flashcards.take(count).toList();
+}
+
   // Generate gross motor skills flashcards
   static List<Map<String, dynamic>> _generateGrossMotorSkillsFlashcards(
-      String subject, int age, String language, int count) {
-    final List<Map<String, dynamic>> flashcards = [
-      {
-        'title': 'Running',
-        'letter': 'Ru',
-        'description': 'Running is moving quickly on your feet.',
-        'image_asset': 'assets/flashcards/motor/running.png',
-      },
-      {
-        'title': 'Jumping',
-        'letter': 'Ju',
-        'description': 'Jumping is pushing off the ground with your feet.',
-        'image_asset': 'assets/flashcards/motor/jumping.png',
-      },
-      {
-        'title': 'Throwing',
-        'letter': 'Th',
-        'description': 'Throwing is sending an object through the air with your hand.',
-        'image_asset': 'assets/flashcards/motor/throwing.png',
-      },
-      {
-        'title': 'Kicking',
-        'letter': 'Ki',
-        'description': 'Kicking is hitting something with your foot.',
-        'image_asset': 'assets/flashcards/motor/kicking.png',
-      },
-    ];
-    
-    return flashcards.take(count).toList();
-  }
+    String subject, int age, String language, int count) {
+  final List<Map<String, dynamic>> flashcards = [
+    {
+      'title': 'Running',
+      'letter': 'Ru',
+      'description': 'Running is moving quickly on your feet.',
+      'image_asset': 'assets/flashcards/motor/running.png',
+    },
+    {
+      'title': 'Jumping',
+      'letter': 'Ju',
+      'description': 'Jumping is pushing off the ground with your feet.',
+      'image_asset': 'assets/flashcards/motor/jumping.png',
+    },
+    {
+      'title': 'Throwing',
+      'letter': 'Th',
+      'description': 'Throwing is sending an object through the air with your hand.',
+      'image_asset': 'assets/flashcards/motor/throwing.png',
+    },
+    {
+      'title': 'Kicking',
+      'letter': 'Ki',
+      'description': 'Kicking is hitting something with your foot.',
+      'image_asset': 'assets/flashcards/motor/kicking.png',
+    },
+    {
+      'title': 'Climbing',
+      'letter': 'Cl',
+      'description': 'Climbing is moving up using your hands and feet.',
+      'image_asset': 'assets/flashcards/motor/climbing.png',
+    },
+    {
+      'title': 'Hopping',
+      'letter': 'Ho',
+      'description': 'Hopping is jumping on one foot.',
+      'image_asset': 'assets/flashcards/motor/hopping.png',
+    },
+    {
+      'title': 'Balancing',
+      'letter': 'Ba',
+      'description': 'Balancing is staying steady without falling.',
+      'image_asset': 'assets/flashcards/motor/balancing.png',
+    },
+    {
+      'title': 'Skipping',
+      'letter': 'Sk',
+      'description': 'Skipping is stepping and hopping in a pattern.',
+      'image_asset': 'assets/flashcards/motor/skipping.png',
+    },
+    {
+      'title': 'Crawling',
+      'letter': 'Cr',
+      'description': 'Crawling is moving on hands and knees.',
+      'image_asset': 'assets/flashcards/motor/crawling.png',
+    },
+    {
+      'title': 'Dancing',
+      'letter': 'Da',
+      'description': 'Dancing is moving your body to music.',
+      'image_asset': 'assets/flashcards/motor/dancing.png',
+    },
+  ];
   
+  return flashcards.take(count).toList();
+}
+
   // Generate fine motor skills flashcards
   static List<Map<String, dynamic>> _generateFineMotorSkillsFlashcards(
       String subject, int age, String language, int count) {
@@ -680,6 +896,42 @@ class FlashcardTemplateGenerator {
         'letter': 'Be',
         'description': 'Beading is putting beads on a string.',
         'image_asset': 'assets/flashcards/motor/beading.png',
+      },
+      {
+        'title': 'Coloring',
+        'letter': 'Co',
+        'description': 'Coloring is filling areas with colors using crayons or markers.',
+        'image_asset': 'assets/flashcards/motor/coloring.png',
+      },
+      {
+        'title': 'Folding',
+        'letter': 'Fo',
+        'description': 'Folding is bending paper or fabric neatly.',
+        'image_asset': 'assets/flashcards/motor/folding.png',
+      },
+      {
+        'title': 'Tracing',
+        'letter': 'Tr',
+        'description': 'Tracing is drawing over lines to copy a shape.',
+        'image_asset': 'assets/flashcards/motor/tracing.png',
+      },
+      {
+        'title': 'Zipping',
+        'letter': 'Zi',
+        'description': 'Zipping is closing a zipper on clothing or bags.',
+        'image_asset': 'assets/flashcards/motor/zipping.png',
+      },
+      {
+        'title': 'Lacing',
+        'letter': 'La',
+        'description': 'Lacing is threading string through holes.',
+        'image_asset': 'assets/flashcards/motor/lacing.png',
+      },
+      {
+        'title': 'Playdough',
+        'letter': 'Pl',
+        'description': 'Playdough is shaping soft clay with your fingers.',
+        'image_asset': 'assets/flashcards/motor/playdough.png',
       },
     ];
     
@@ -709,10 +961,160 @@ class FlashcardTemplateGenerator {
         'image_asset': 'assets/flashcards/jawi/ta.png',
       },
       {
+        'title': 'Tsa',
+        'letter': 'ث',
+        'description': 'Tsa adalah huruf keempat dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/tsa.png',
+      },
+      {
         'title': 'Jim',
         'letter': 'ج',
         'description': 'Jim adalah huruf kelima dalam abjad Jawi.',
         'image_asset': 'assets/flashcards/jawi/jim.png',
+      },
+      {
+        'title': 'Ha',
+        'letter': 'ح',
+        'description': 'Ha adalah huruf keenam dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ha.png',
+      },
+      {
+        'title': 'Kha',
+        'letter': 'خ',
+        'description': 'Kha adalah huruf ketujuh dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/kha.png',
+      },
+      {
+        'title': 'Dal',
+        'letter': 'د',
+        'description': 'Dal adalah huruf kelapan dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/dal.png',
+      },
+      {
+        'title': 'Dzal',
+        'letter': 'ذ',
+        'description': 'Dzal adalah huruf kesembilan dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/dzal.png',
+      },
+      {
+        'title': 'Ra',
+        'letter': 'ر',
+        'description': 'Ra adalah huruf kesepuluh dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ra.png',
+      },
+      {
+        'title': 'Zai',
+        'letter': 'ز',
+        'description': 'Zai adalah huruf kesebelas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/zai.png',
+      },
+      {
+        'title': 'Sin',
+        'letter': 'س',
+        'description': 'Sin adalah huruf kedua belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/sin.png',
+      },
+      {
+        'title': 'Syin',
+        'letter': 'ش',
+        'description': 'Syin adalah huruf ketiga belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/syin.png',
+      },
+      {
+        'title': 'Shad',
+        'letter': 'ص',
+        'description': 'Shad adalah huruf keempat belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/shad.png',
+      },
+      {
+        'title': 'Dhad',
+        'letter': 'ض',
+        'description': 'Dhad adalah huruf kelima belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/dhad.png',
+      },
+      {
+        'title': 'Tha',
+        'letter': 'ط',
+        'description': 'Tha adalah huruf keenam belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/tha.png',
+      },
+      {
+        'title': 'Dza',
+        'letter': 'ظ',
+        'description': 'Dza adalah huruf ketujuh belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/dza.png',
+      },
+      {
+        'title': '\'Ain',
+        'letter': 'ع',
+        'description': '\'Ain adalah huruf kedelapan belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ain.png',
+      },
+      {
+        'title': 'Ghain',
+        'letter': 'غ',
+        'description': 'Ghain adalah huruf kesembilan belas dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ghain.png',
+      },
+      {
+        'title': 'Fa',
+        'letter': 'ف',
+        'description': 'Fa adalah huruf kedua puluh dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/fa.png',
+      },
+      {
+        'title': 'Qaf',
+        'letter': 'ق',
+        'description': 'Qaf adalah huruf kedua puluh satu dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/qaf.png',
+      },
+      {
+        'title': 'Kaf',
+        'letter': 'ك',
+        'description': 'Kaf adalah huruf kedua puluh dua dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/kaf.png',
+      },
+      {
+        'title': 'Lam',
+        'letter': 'ل',
+        'description': 'Lam adalah huruf kedua puluh tiga dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/lam.png',
+      },
+      {
+        'title': 'Mim',
+        'letter': 'م',
+        'description': 'Mim adalah huruf kedua puluh empat dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/mim.png',
+      },
+      {
+        'title': 'Nun',
+        'letter': 'ن',
+        'description': 'Nun adalah huruf kedua puluh lima dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/nun.png',
+      },
+      {
+        'title': 'Wau',
+        'letter': 'و',
+        'description': 'Wau adalah huruf kedua puluh enam dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/wau.png',
+      },
+      {
+        'title': 'Ha',
+        'letter': 'ه',
+        'description': 'Ha adalah huruf kedua puluh tujuh dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ha2.png',
+      },
+      {
+        'title': 'Hamzah',
+        'letter': 'ء',
+        'description': 'Hamzah adalah huruf kedua puluh delapan dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/hamzah.png',
+      },
+      {
+        'title': 'Ya',
+        'letter': 'ي',
+        'description': 'Ya adalah huruf kedua puluh sembilan dalam abjad Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ya.png',
       },
     ];
     
@@ -747,6 +1149,42 @@ class FlashcardTemplateGenerator {
         'description': 'Kita dalam tulisan Jawi.',
         'image_asset': 'assets/flashcards/jawi/kita.png',
       },
+      {
+        'title': 'Ibu',
+        'letter': 'ايبو',
+        'description': 'Ibu dalam tulisan Jawi.',
+        'image_asset': 'assets/flashcards/jawi/ibu.png',
+      },
+      {
+        'title': 'Bapa',
+        'letter': 'باڤ',
+        'description': 'Bapa dalam tulisan Jawi.',
+        'image_asset': 'assets/flashcards/jawi/bapa.png',
+      },
+      {
+        'title': 'Makan',
+        'letter': 'ماكن',
+        'description': 'Makan dalam tulisan Jawi.',
+        'image_asset': 'assets/flashcards/jawi/makan.png',
+      },
+      {
+        'title': 'Minum',
+        'letter': 'مينوم',
+        'description': 'Minum dalam tulisan Jawi.',
+        'image_asset': 'assets/flashcards/jawi/minum.png',
+      },
+      {
+        'title': 'Sekolah',
+        'letter': 'سكوله',
+        'description': 'Sekolah dalam tulisan Jawi.',
+        'image_asset': 'assets/flashcards/jawi/sekolah.png',
+      },
+      {
+        'title': 'Rumah',
+        'letter': 'روماه',
+        'description': 'Rumah dalam tulisan Jawi.',
+        'image_asset': 'assets/flashcards/jawi/rumah.png',
+      },
     ];
     
     return flashcards.take(count).toList();
@@ -780,6 +1218,150 @@ class FlashcardTemplateGenerator {
         'description': 'Tha adalah huruf keempat dalam abjad Hijaiyah.',
         'image_asset': 'assets/flashcards/hijaiyah/tha.png',
       },
+      {
+        'title': 'Jim',
+        'letter': 'ج',
+        'description': 'Jim adalah huruf kelima dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/jim.png',
+      },
+      {
+        'title': 'Ha',
+        'letter': 'ح',
+        'description': 'Ha adalah huruf keenam dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/ha.png',
+      },
+      {
+        'title': 'Kha',
+        'letter': 'خ',
+        'description': 'Kha adalah huruf ketujuh dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/kha.png',
+      },
+      {
+        'title': 'Dal',
+        'letter': 'د',
+        'description': 'Dal adalah huruf kelapan dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/dal.png',
+      },
+      {
+        'title': 'Dzal',
+        'letter': 'ذ',
+        'description': 'Dzal adalah huruf kesembilan dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/dzal.png',
+      },
+      {
+        'title': 'Ra',
+        'letter': 'ر',
+        'description': 'Ra adalah huruf kesepuluh dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/ra.png',
+      },
+      {
+        'title': 'Zai',
+        'letter': 'ز',
+        'description': 'Zai adalah huruf kesebelas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/zai.png',
+      },
+      {
+        'title': 'Sin',
+        'letter': 'س',
+        'description': 'Sin adalah huruf kedua belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/sin.png',
+      },
+      {
+        'title': 'Syin',
+        'letter': 'ش',
+        'description': 'Syin adalah huruf ketiga belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/syin.png',
+      },
+      {
+        'title': 'Shad',
+        'letter': 'ص',
+        'description': 'Shad adalah huruf keempat belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/shad.png',
+      },
+      {
+        'title': 'Dhad',
+        'letter': 'ض',
+        'description': 'Dhad adalah huruf kelima belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/dhad.png',
+      },
+      {
+        'title': 'Tha',
+        'letter': 'ط',
+        'description': 'Tha adalah huruf keenam belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/tha2.png',
+      },
+      {
+        'title': 'Dza',
+        'letter': 'ظ',
+        'description': 'Dza adalah huruf ketujuh belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/dza.png',
+      },
+      {
+        'title': '\'Ain',
+        'letter': 'ع',
+        'description': '\'Ain adalah huruf kedelapan belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/ain.png',
+      },
+      {
+        'title': 'Ghain',
+        'letter': 'غ',
+        'description': 'Ghain adalah huruf kesembilan belas dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/ghain.png',
+      },
+      {
+        'title': 'Fa',
+        'letter': 'ف',
+        'description': 'Fa adalah huruf kedua puluh dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/fa.png',
+      },
+      {
+        'title': 'Qaf',
+        'letter': 'ق',
+        'description': 'Qaf adalah huruf kedua puluh satu dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/qaf.png',
+      },
+      {
+        'title': 'Kaf',
+        'letter': 'ك',
+        'description': 'Kaf adalah huruf kedua puluh dua dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/kaf.png',
+      },
+      {
+        'title': 'Lam',
+        'letter': 'ل',
+        'description': 'Lam adalah huruf kedua puluh tiga dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/lam.png',
+      },
+      {
+        'title': 'Mim',
+        'letter': 'م',
+        'description': 'Mim adalah huruf kedua puluh empat dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/mim.png',
+      },
+      {
+        'title': 'Nun',
+        'letter': 'ن',
+        'description': 'Nun adalah huruf kedua puluh lima dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/nun.png',
+      },
+      {
+        'title': 'Wau',
+        'letter': 'و',
+        'description': 'Wau adalah huruf kedua puluh enam dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/wau.png',
+      },
+      {
+        'title': 'Ha',
+        'letter': 'ه',
+        'description': 'Ha adalah huruf kedua puluh tujuh dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/ha2.png',
+      },
+      {
+        'title': 'Ya',
+        'letter': 'ي',
+        'description': 'Ya adalah huruf kedua puluh delapan dalam abjad Hijaiyah.',
+        'image_asset': 'assets/flashcards/hijaiyah/ya.png',
+      },
     ];
     
     return flashcards.take(count).toList();
@@ -812,6 +1394,42 @@ class FlashcardTemplateGenerator {
         'letter': 'ثَ',
         'description': 'Tha dengan baris atas dibaca "tsa".',
         'image_asset': 'assets/flashcards/iqraa/tha_fathah.png',
+      },
+      {
+        'title': 'Jim Fathah',
+        'letter': 'جَ',
+        'description': 'Jim dengan baris atas dibaca "ja".',
+        'image_asset': 'assets/flashcards/iqraa/jim_fathah.png',
+      },
+      {
+        'title': 'Ha Fathah',
+        'letter': 'حَ',
+        'description': 'Ha dengan baris atas dibaca "ha".',
+        'image_asset': 'assets/flashcards/iqraa/ha_fathah.png',
+      },
+      {
+        'title': 'Kha Fathah',
+        'letter': 'خَ',
+        'description': 'Kha dengan baris atas dibaca "kha".',
+        'image_asset': 'assets/flashcards/iqraa/kha_fathah.png',
+      },
+      {
+        'title': 'Dal Fathah',
+        'letter': 'دَ',
+        'description': 'Dal dengan baris atas dibaca "da".',
+        'image_asset': 'assets/flashcards/iqraa/dal_fathah.png',
+      },
+      {
+        'title': 'Dzal Fathah',
+        'letter': 'ذَ',
+        'description': 'Dzal dengan baris atas dibaca "dza".',
+        'image_asset': 'assets/flashcards/iqraa/dzal_fathah.png',
+      },
+      {
+        'title': 'Ra Fathah',
+        'letter': 'رَ',
+        'description': 'Ra dengan baris atas dibaca "ra".',
+        'image_asset': 'assets/flashcards/iqraa/ra_fathah.png',
       },
     ];
     
@@ -912,6 +1530,31 @@ class FlashcardTemplateGenerator {
         'letter': 'Nn',
         'image_asset': 'assets/flashcards/science/nose.png',
       },
+      {
+        'title': 'Brain',
+        'letter': 'Bb',
+        'image_asset': 'assets/flashcards/science/brain.png',
+      },
+      {
+        'title': 'Fingertips',
+        'letter': 'Ff',
+        'image_asset': 'assets/flashcards/science/fingertips.png',
+      },
+      {
+        'title': 'Taste Buds',
+        'letter': 'Tb',
+        'image_asset': 'assets/flashcards/science/taste_buds.png',
+      },
+      {
+        'title': 'Light',
+        'letter': 'Li',
+        'image_asset': 'assets/flashcards/science/light.png',
+      },
+      {
+        'title': 'Sound',
+        'letter': 'So',
+        'image_asset': 'assets/flashcards/science/sound.png',
+      },
     ];
     
     // Age-specific descriptions
@@ -986,7 +1629,7 @@ class FlashcardTemplateGenerator {
     
     // Add additional cards for older ages
     if (age >= 5) {
-      for (var card in advancedCards) {
+      for (var card in advancedCards.take(age == 5 ? 3 : 5)) {
         var title = card['title'] as String;
         var description = '';
         
@@ -1009,15 +1652,20 @@ class FlashcardTemplateGenerator {
             case 'Nose':
               description = 'Nose helps us smell different scents.';
               break;
-          }
-        } else {
-          // More detailed for age 6
-          switch (title) {
-            case 'Eyes':
-              description = 'Eyes have parts like pupils, iris, and retina that work together to help us see.';
+            case 'Brain':
+              description = 'Brain helps us think and understand what we sense.';
               break;
-            case 'Ears':
-              description = 'Ears have outer, middle, and inner parts that capture sound and send signals to our brain.';
+            case 'Fingertips':
+              description = 'Fingertips help us feel things better.';
+              break;
+            case 'Taste Buds':
+              description = 'Taste buds help us taste different flavors.';
+              break;
+            case 'Light':
+              description = 'Light helps us see things around us.';
+              break;
+            case 'Sound':
+              description = 'Sound is what we hear with our ears.';
               break;
             case 'Skin':
               description = 'Skin is our largest organ. It has receptors that detect touch, temperature, and pain.';
@@ -1077,8 +1725,14 @@ class FlashcardTemplateGenerator {
         'image_asset': 'assets/flashcards/science/insects.png',
         'category': 'Living',
       },
+      {
+        'title': 'Fish',
+        'letter': 'Ff',
+        'image_asset': 'assets/flashcards/science/fish.png',
+        'category': 'Living',
+      },
     ];
-    
+  
     // Non-living things
     final nonLivingThings = [
       {
@@ -1109,6 +1763,36 @@ class FlashcardTemplateGenerator {
         'title': 'Furniture',
         'letter': 'Ff',
         'image_asset': 'assets/flashcards/science/furniture.png',
+        'category': 'Non-living',
+      },
+      {
+        'title': 'Cloud',
+        'letter': 'Cc',
+        'image_asset': 'assets/flashcards/science/cloud.png',
+        'category': 'Non-living',
+      },
+      {
+        'title': 'Sun',
+        'letter': 'Ss',
+        'image_asset': 'assets/flashcards/science/sun.png',
+        'category': 'Non-living',
+      },
+      {
+        'title': 'Moon',
+        'letter': 'Mm',
+        'image_asset': 'assets/flashcards/science/moon.png',
+        'category': 'Non-living',
+      },
+      {
+        'title': 'Computer',
+        'letter': 'Cc',
+        'image_asset': 'assets/flashcards/science/computer.png',
+        'category': 'Non-living',
+      },
+      {
+        'title': 'Car',
+        'letter': 'Cc',
+        'image_asset': 'assets/flashcards/science/car.png',
         'category': 'Non-living',
       },
     ];
