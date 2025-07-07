@@ -309,7 +309,7 @@ class _ChapterSelectionScreenState extends State<ChapterSelectionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No note available for this chapter yet.'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Colors.blue,
           ),
         );
       }

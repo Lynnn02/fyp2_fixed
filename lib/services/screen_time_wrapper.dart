@@ -187,16 +187,21 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
   Future<void> _handleUnlock() async {
     print('Unlocking screen time restrictions');
     
-    // Reset lock state
-    setState(() {
-      _isLocked = false;
-      _lockReason = '';
+    // Use microtask to ensure we're not updating state during build
+    Future.microtask(() async {
+      // Reset lock state
+      if (mounted) {
+        setState(() {
+          _isLocked = false;
+          _lockReason = '';
+        });
+      }
+      
+      // Make sure to await this to avoid immediate re-locking
+      await _disableScreenTimeRestrictions();
+      
+      print('Screen time restrictions disabled until new settings are applied');
     });
-    
-    // Make sure to await this to avoid immediate re-locking
-    await _disableScreenTimeRestrictions();
-    
-    print('Screen time restrictions disabled until new settings are applied');
   }
 
   // Verify parent password against Firestore stored credentials
@@ -204,10 +209,12 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
     if (!_formKey.currentState!.validate()) return;
     
     // Update UI to show we're verifying
-    setState(() {
-      _isVerifying = true;
-      _errorMessage = '';
-    });
+    if (mounted) {
+      setState(() {
+        _isVerifying = true;
+        _errorMessage = '';
+      });
+    }
 
     try {
       // Ensure we have a valid user ID
@@ -215,10 +222,12 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
       final String profileId = currentUser?.uid ?? _userId ?? '';
       
       if (profileId.isEmpty) {
-        setState(() {
-          _errorMessage = 'Error: User ID is empty';
-          _isVerifying = false;
-        });
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Error: User ID is empty';
+            _isVerifying = false;
+          });
+        }
         return;
       }
       
@@ -233,15 +242,22 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
         if (_passwordController.text == '123456') {
           // If default password works, still allow access but show a warning
           print('WARNING: Using default password for screen time unlock');
+          
+          // Clear password field
+          _passwordController.clear();
+          
+          // Disable restrictions and unlock in a safe way
           await _disableScreenTimeRestrictions();
-          await _handleUnlock();
+          _handleUnlock(); // Don't await this to avoid state changes during build
           return;
         }
         
-        setState(() {
-          _errorMessage = 'User profile not found';
-          _isVerifying = false;
-        });
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'User profile not found';
+            _isVerifying = false;
+          });
+        }
         return;
       }
 
@@ -259,20 +275,28 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
       ].where((pwd) => pwd != null && pwd.isNotEmpty).toList();
       
       if (validCredentials.contains(_passwordController.text)) {
+        // Clear password field
+        _passwordController.clear();
+        
+        // Disable restrictions and unlock in a safe way
         await _disableScreenTimeRestrictions();
-        await _handleUnlock();
+        _handleUnlock(); // Don't await this to avoid state changes during build
       } else {
         // Show error message
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Incorrect password';
+            _isVerifying = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _errorMessage = 'Incorrect password';
+          _errorMessage = 'Error verifying password: $e';
           _isVerifying = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error verifying password: $e';
-        _isVerifying = false;
-      });
     }
   }
   
@@ -313,6 +337,13 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
       print('Screen time lock active, showing lock screen with reason: $_lockReason');
     }
     
+    // Check if we're on login or signup screens where lock shouldn't apply
+    final currentRoute = ModalRoute.of(context)?.settings.name ?? '';
+    final isAuthScreen = currentRoute == '/login' || currentRoute == '/signup' || currentRoute == '/splash';
+    
+    // Don't show lock screen on auth screens
+    final shouldShowLock = _isLocked && widget.enforceScreenTime && !isAuthScreen;
+    
     // Simple approach: always keep the real app in the tree
     // Overlay the lock screen only when needed
     return Stack(
@@ -320,12 +351,12 @@ class _ScreenTimeWrapperState extends State<ScreenTimeWrapper> with WidgetsBindi
         // Base app (always visible, but might be covered)
         // AbsorbPointer prevents interaction with the underlying app when locked
         AbsorbPointer(
-          absorbing: _isLocked && widget.enforceScreenTime,
+          absorbing: shouldShowLock,
           child: widget.child,
         ),
         
-        // Lock screen overlay (only when locked)
-        if (_isLocked && widget.enforceScreenTime) 
+        // Lock screen overlay (only when locked and not on auth screens)
+        if (shouldShowLock) 
           Positioned.fill(
             child: Material(
               color: Colors.black.withOpacity(0.8),

@@ -216,18 +216,18 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
   // Get the appropriate color for the game type
   Color _getGameColor(String gameType) {
     switch (gameType.toLowerCase()) {
-      case 'matching':
-        return Colors.blue;
-      case 'counting':
-        return Colors.amber;
-      case 'puzzle':
-        return Colors.orange;
       case 'tracing':
+        return Colors.purple;
+      case 'matching':
         return Colors.green;
       case 'sorting':
-        return Colors.purple;
+        return Colors.blue;
+      case 'counting':
+        return Colors.blue;
+      case 'puzzle':
+        return Colors.blue;
       default:
-        return Colors.orange;
+        return Colors.blue;
     }
   }
   
@@ -441,7 +441,7 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.3),
+                  color: Colors.blue.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
@@ -467,7 +467,7 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
               Expanded(
                 child: Center(
                   child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.orange)
+                    ? const CircularProgressIndicator(color: Colors.blue)
                     : _errorMessage.isNotEmpty
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -494,12 +494,12 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
                               decoration: BoxDecoration(
                                 color: widget.chapter.gameType != null
                                   ? _getGameColor(widget.chapter.gameType!).withOpacity(0.2)
-                                  : Colors.orange.withOpacity(0.2),
+                                  : Colors.blue.withOpacity(0.2),
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: widget.chapter.gameType != null
                                     ? _getGameColor(widget.chapter.gameType!)
-                                    : Colors.orange,
+                                    : Colors.blue,
                                   width: 3
                                 ),
                               ),
@@ -510,7 +510,7 @@ class _GameSelectionScreenState extends State<GameSelectionScreen> {
                                 size: 60,
                                 color: widget.chapter.gameType != null
                                   ? _getGameColor(widget.chapter.gameType!)
-                                  : Colors.orange,
+                                  : Colors.blue,
                               ),
                             ),
                             const SizedBox(height: 30),

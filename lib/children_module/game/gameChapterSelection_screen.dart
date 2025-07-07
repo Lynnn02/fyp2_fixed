@@ -50,7 +50,7 @@ class GameChapterSelectionScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.3),
+                  color: Colors.blue.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
@@ -97,8 +97,8 @@ class GameChapterSelectionScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              Colors.orange.shade400,
-                              Colors.orange.shade600,
+                              Colors.blue.shade400,
+                              Colors.blue.shade600,
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -125,7 +125,7 @@ class GameChapterSelectionScreen extends StatelessWidget {
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.shade600,
+                                  color: Colors.blue.shade600,
                                   borderRadius: const BorderRadius.only(
                                     topLeft: Radius.circular(15),
                                     topRight: Radius.circular(15),
@@ -150,7 +150,7 @@ class GameChapterSelectionScreen extends StatelessWidget {
                                     _buildFeatureButton(
                                       icon: Icons.sports_esports,
                                       label: 'Play Game',
-                                      color: Colors.orange.shade600,
+                                      color: Colors.blue.shade600,
                                       onPressed: () {
                                         Navigator.push(
                                           context,

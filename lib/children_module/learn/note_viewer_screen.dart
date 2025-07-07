@@ -1107,7 +1107,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
       'A': Colors.red,
       'B': Colors.blue,
       'C': Colors.green,
-      'D': Colors.orange,
+      'D': Colors.blue,
       'E': Colors.purple,
       'F': Colors.teal,
       'G': Colors.pink,
@@ -1124,7 +1124,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
       'R': Colors.red.shade800,
       'S': Colors.blue.shade800,
       'T': Colors.green.shade800,
-      'U': Colors.orange.shade800,
+      'U': Colors.blue.shade800,
       'V': Colors.purple.shade800,
       'W': Colors.teal.shade800,
       'X': Colors.pink.shade800,
@@ -1170,9 +1170,9 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
         margin: const EdgeInsets.symmetric(vertical: 8.0),
         padding: const EdgeInsets.all(12.0),
         decoration: BoxDecoration(
-          color: Colors.orange.shade50,
+          color: Colors.blue.shade50,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.shade200),
+          border: Border.all(color: Colors.blue.shade200),
         ),
         child: Column(
           children: [
@@ -1198,7 +1198,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                           width: 50,
                           height: 50,
                           decoration: const BoxDecoration(
-                            color: Colors.orange,
+                            color: Colors.blue,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -1252,7 +1252,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                         style: TextStyle(
                           fontSize: _getFontSizeForAge(),
                           fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade700,
+                          color: Colors.blue.shade700,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1286,8 +1286,8 @@ class _NoteViewerScreenState extends State<NoteViewerScreen> {
                       value: duration.inMilliseconds > 0
                           ? position.inMilliseconds / duration.inMilliseconds
                           : 0.0,
-                      backgroundColor: Colors.orange.shade100,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                      backgroundColor: Colors.blue.shade100,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
                     ),
                     const SizedBox(height: 4),
                     Row(

@@ -50,7 +50,7 @@ class _GameSubjectSelectionScreenState extends State<GameSubjectSelectionScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.3),
+                  color: Colors.blue.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
@@ -145,7 +145,7 @@ class _GameSubjectSelectionScreenState extends State<GameSubjectSelectionScreen>
                                     width: 40,
                                     height: 40,
                                     decoration: const BoxDecoration(
-                                      color: Colors.orange,
+                                      color: Colors.blue,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Center(
@@ -177,7 +177,7 @@ class _GameSubjectSelectionScreenState extends State<GameSubjectSelectionScreen>
                                         );
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange,
+                                        backgroundColor: Colors.blue,
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 20,
                                           vertical: 15,

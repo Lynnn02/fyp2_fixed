@@ -369,6 +369,46 @@ class _ParentModeScreenState extends State<ParentModeScreen> {
               );
             },
           ),
+
+          // Logout Button
+          _buildControlCard(
+            title: 'Logout',
+            icon: Icons.logout,
+            color: Colors.red.shade700,
+            description: 'Sign out and return to login screen',
+            onTap: () {
+              // Show confirmation dialog
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text('Confirm Logout'),
+                    content: const Text('Are you sure you want to logout?'),
+                    actions: <Widget>[
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          // Sign out from Firebase
+                          await FirebaseAuth.instance.signOut();
+                          
+                          // Navigate to login screen and clear navigation history
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/login', 
+                            (route) => false,
+                          );
+                        },
+                        child: const Text('Logout'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ],
       ),
     );

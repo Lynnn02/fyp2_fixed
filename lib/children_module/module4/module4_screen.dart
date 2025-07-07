@@ -19,13 +19,7 @@ class Module4Screen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          tooltip: 'Back',
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
+        automaticallyImplyLeading: false, // Remove back button
       ),
       extendBodyBehindAppBar: true,
       body: Stack(
@@ -68,7 +62,7 @@ class Module4Screen extends StatelessWidget {
               // Leaderboard Button
               ModuleButton(
                 text: 'LEADERBOARD',
-                backgroundColor: const Color(0xFFFFB74D), // Orange
+                backgroundColor: const Color(0xFF2196F3), // Blue
                 onPressed: () {
                   Navigator.push(
                     context,

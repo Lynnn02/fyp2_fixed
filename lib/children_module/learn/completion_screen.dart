@@ -85,7 +85,7 @@ class CompletionScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade300,
+                    color: Colors.blue.shade300,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -161,7 +161,7 @@ class RainbowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final colors = [
       Colors.red.shade300,
-      Colors.orange.shade300,
+      Colors.blue.shade300,
       Colors.yellow.shade300,
       Colors.green.shade300,
       Colors.blue.shade300,

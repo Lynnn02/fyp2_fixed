@@ -85,10 +85,10 @@ class ContentFilterService {
         }
       }
       
-      // Default to BLOCKED if we can't find the setting
-      // This ensures only explicitly allowed subjects are shown
-      print('No content filter setting found for "$subjectIdOrName", defaulting to BLOCKED');
-      return false;
+      // Default to ALLOWED if we can't find the setting
+      // This ensures subjects are shown by default and parents must explicitly block them
+      print('No content filter setting found for "$subjectIdOrName", defaulting to ALLOWED');
+      return true;
     } catch (e) {
       print('Error checking subject access: $e');
       return false; // Default to BLOCKED on error for security

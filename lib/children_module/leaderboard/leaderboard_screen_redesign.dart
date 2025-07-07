@@ -389,7 +389,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       foreground: Paint()..shader = LinearGradient(
-                        colors: const [Colors.purple, Colors.red, Colors.orange, Colors.yellow, Colors.green, Colors.blue],
+                        colors: const [Colors.purple, Colors.red, Colors.blue, Colors.yellow, Colors.green, Colors.blue],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                       ).createShader(const Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
@@ -584,7 +584,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> with TickerProvid
       Colors.red.shade400,
       Colors.green.shade400,
       Colors.purple.shade400,
-      Colors.orange.shade400,
+      Colors.blue.shade400,
       Colors.pink.shade400,
       Colors.teal.shade400,
     ];

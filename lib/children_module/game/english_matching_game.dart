@@ -234,7 +234,7 @@ class _EnglishMatchingGameState extends State<EnglishMatchingGame> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Matching Game: ${widget.chapterName}'),
-        backgroundColor: Colors.orange,
+        backgroundColor: Colors.blue,
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -271,7 +271,7 @@ class _EnglishMatchingGameState extends State<EnglishMatchingGame> {
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+                            color: Colors.blue,
                           ),
                         ),
                       ],
@@ -359,7 +359,7 @@ class _EnglishMatchingGameState extends State<EnglishMatchingGame> {
                         icon: const Icon(Icons.replay),
                         label: const Text('Play Again'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
+                          backgroundColor: Colors.blue,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 30,
                             vertical: 15,
@@ -395,7 +395,7 @@ class _EnglishMatchingGameState extends State<EnglishMatchingGame> {
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.orange.shade200 : Colors.white,
+                            color: isSelected ? Colors.blue.shade200 : Colors.white,
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
@@ -405,7 +405,7 @@ class _EnglishMatchingGameState extends State<EnglishMatchingGame> {
                               ),
                             ],
                             border: Border.all(
-                              color: isSelected ? Colors.orange : Colors.grey.shade300,
+                              color: isSelected ? Colors.blue : Colors.grey.shade300,
                               width: isSelected ? 3 : 1,
                             ),
                           ),

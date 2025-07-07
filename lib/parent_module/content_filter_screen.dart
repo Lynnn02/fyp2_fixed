@@ -69,20 +69,20 @@ class _ContentFilterScreenState extends State<ContentFilterScreen> {
       
       for (var doc in subjectsSnapshot.docs) {
         final data = doc.data();
-        final subjectAgeGroup = data['ageGroup'] ?? 4;
+        final subjectModuleId = data['moduleId'] ?? 4;
         final subjectName = data['name'] ?? 'Unknown Subject';
         
         // Check for duplicates using case-insensitive comparison
         final lowerCaseName = subjectName.toLowerCase();
         
         // Only add subjects that exactly match the child's age group and aren't duplicates
-        if (_childAgeGroup == subjectAgeGroup && !addedSubjectNames.contains(lowerCaseName)) {
+        if (_childAgeGroup == subjectModuleId && !addedSubjectNames.contains(lowerCaseName)) {
           subjects.add(SubjectFilter(
             id: doc.id,
             name: subjectName,
             description: data['description'] ?? '',
             imageUrl: data['imageUrl'] ?? '',
-            ageGroup: subjectAgeGroup,
+            ageGroup: subjectModuleId,
           ));
           
           // Add to the set of processed subject names

@@ -629,8 +629,12 @@ class _ScreenTimeLockScreenState extends State<ScreenTimeLockScreen> {
       await prefs.setString('screenTimeOverrideUntil', overrideUntil.toIso8601String());
     }
     
-    // Unlock the app
-    widget.onUnlock();
+    // Use Future.delayed to ensure we're not calling onUnlock during build
+    // This prevents the "setState() or markNeedsBuild() called during build" assertion error
+    Future.microtask(() {
+      // Unlock the app
+      widget.onUnlock();
+    });
   }
   
   @override

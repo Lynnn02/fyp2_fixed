@@ -273,7 +273,7 @@ class _LeaderboardNavigationState extends State<LeaderboardNavigation> {
     final Map<String, Color> iconColors = {
       'Math': Colors.blue,
       'Science': Colors.green,
-      'English': Colors.orange,
+      'English': Colors.blue,
       'History': Colors.purple,
       'Art': Colors.red,
       'Music': Colors.teal,
@@ -294,7 +294,7 @@ class _LeaderboardNavigationState extends State<LeaderboardNavigation> {
     final colors = [
       Colors.blue,
       Colors.green,
-      Colors.orange,
+      Colors.blue,
       Colors.purple,
       Colors.red,
       Colors.teal,

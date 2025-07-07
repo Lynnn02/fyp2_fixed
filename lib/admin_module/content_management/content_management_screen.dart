@@ -1024,7 +1024,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     
     try {
       // Use the available game types instead of AI recommendation
-      final List<String> suitableGameTypes = ['matching', 'sorting', 'tracing', 'shape_color'];
+      final List<String> suitableGameTypes = ['matching', 'sorting', 'tracing'];
       
       if (context.mounted) {
         setState(() {
