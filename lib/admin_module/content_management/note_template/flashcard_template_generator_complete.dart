@@ -90,6 +90,7 @@ class FlashcardTemplateGenerator {
   static String _createSimplifiedDescription(String baseDescription, String title) {
     // For age 4, create a very simple description - just the title
     switch (title.toLowerCase()) {
+      // Malay letters simplified descriptions
       case 'ayam':
         return 'Ayam';
       case 'bola':
@@ -122,6 +123,393 @@ class FlashcardTemplateGenerator {
         return 'Orang';
       case 'pokok':
         return 'Pokok';
+        
+      // Malay simple words simplified descriptions
+      case 'saya':
+        return 'Saya';
+      case 'kamu':
+        return 'Kamu';
+      case 'makan':
+        return 'Makan';
+      case 'minum':
+        return 'Minum';
+      case 'tidur':
+        return 'Tidur';
+      case 'baca':
+        return 'Baca';
+      case 'tulis':
+        return 'Tulis';
+      case 'lari':
+        return 'Lari';
+      case 'main':
+        return 'Main';
+      case 'suka':
+        return 'Suka';
+
+    // Jawi Letters simplified descriptions
+    case 'alif':
+      return 'ا';
+    case 'ba':
+      return 'ب';
+    case 'ta':
+      return 'ت';
+    case 'tsa':
+      return 'ث';
+    case 'jim':
+      return 'ج';
+    case 'ha':
+      return 'ح';
+    case 'kha':
+      return 'خ';
+    case 'dal':
+      return 'د';
+    case 'dzal':
+      return 'ذ';
+    case 'ra':
+      return 'ر';
+
+    // Jawi Simple Writing simplified descriptions
+    case 'saya':
+      return 'سايا';
+    case 'kamu':
+      return 'كامو';
+    case 'dia':
+      return 'دي';
+    case 'kita':
+      return 'كيت';
+    case 'ibu':
+      return 'ايبو';
+    case 'bapa':
+      return 'باڤ';
+    case 'makan':
+      return 'ماكن';
+    case 'minum':
+      return 'مينوم';
+    case 'sekolah':
+      return 'سكوله';
+    case 'rumah':
+      return 'روماه';
+
+    // Basic Iqraa Reading simplified descriptions
+    case 'alif fathah':
+      return 'اَ = a';
+    case 'ba fathah':
+      return 'بَ = ba';
+    case 'ta fathah':
+      return 'تَ = ta';
+    case 'tha fathah':
+      return 'ثَ = tsa';
+    case 'jim fathah':
+      return 'جَ = ja';
+    case 'ha fathah':
+      return 'حَ = ha';
+    case 'kha fathah':
+      return 'خَ = kha';
+    case 'dal fathah':
+      return 'دَ = da';
+    case 'dzal fathah':
+      return 'ذَ = dza';
+    case 'ra fathah':
+      return 'رَ = ra';
+
+      // English sight words simplified descriptions
+      case 'the':
+        return 'The';
+      case 'and':
+        return 'And';
+      case 'a':
+        return 'A';
+      case 'to':
+        return 'To';
+      case 'in':
+        return 'In';
+      case 'is':
+        return 'Is';
+      case 'you':
+        return 'You';
+      case 'that':
+        return 'That';
+      case 'it':
+        return 'It';
+      case 'he':
+        return 'He';
+      
+      // Counting simplified descriptions (Numbers)
+      case 'one':
+        return '1';
+      case 'two':
+        return '2';
+      case 'three':
+        return '3';
+      case 'four':
+        return '4';
+      case 'five':
+        return '5';
+      case 'six':
+        return '6';
+      case 'seven':
+        return '7';
+      case 'eight':
+        return '8';
+      case 'nine':
+        return '9';
+      case 'ten':
+        return '10';
+        
+      // Shapes and Patterns simplified descriptions
+      case 'circle':
+        return 'Circle';
+      case 'square':
+        return 'Square';
+      case 'triangle':
+        return 'Triangle';
+      case 'rectangle':
+        return 'Rectangle';
+      case 'oval':
+        return 'Oval';
+      case 'star':
+        return 'Star';
+      case 'diamond':
+        return 'Diamond';
+      case 'heart':
+        return 'Heart';
+      case 'pentagon':
+        return 'Pentagon';
+      case 'hexagon':
+        return 'Hexagon';
+        
+      // Gross Motor Skills simplified descriptions
+      case 'running':
+        return 'Running';
+      case 'jumping':
+        return 'Jumping';
+      case 'throwing':
+        return 'Throwing';
+      case 'kicking':
+        return 'Kicking';
+      case 'climbing':
+        return 'Climbing';
+      case 'hopping':
+        return 'Hopping';
+      case 'balancing':
+        return 'Balancing';
+      case 'skipping':
+        return 'Skipping';
+      case 'crawling':
+        return 'Crawling';
+      case 'dancing':
+        return 'Dancing';
+        
+      // Living and Non-living Things simplified descriptions
+      case 'plants':
+        return 'Plants';
+      case 'animals':
+        return 'Animals';
+      case 'humans':
+        return 'Humans';
+      case 'birds':
+        return 'Birds';
+      case 'insects':
+        return 'Insects';
+      case 'fish':
+        return 'Fish';
+      case 'rocks':
+        return 'Rocks';
+      case 'water':
+        return 'Water';
+      case 'air':
+        return 'Air';
+      case 'toys':
+        return 'Toys';
+      case 'furniture':
+        return 'Furniture';
+      case 'cloud':
+        return 'Cloud';
+      case 'sun':
+        return 'Sun';
+      case 'moon':
+        return 'Moon';
+      case 'computer':
+        return 'Computer';
+      case 'car':
+        return 'Car';
+      
+      // Sharing and Cooperation simplified descriptions
+      case 'taking turns':
+        return 'Wait for turns';
+      case 'sharing toys':
+        return 'Share toys';
+      case 'helping others':
+        return 'Help friends';
+      case 'listening':
+        return 'Listen';
+      case 'being kind':
+        return 'Be nice';
+      case 'teamwork':
+        return 'Work together';
+      case 'apologizing':
+        return 'Say sorry';
+      case 'patience':
+        return 'Wait calmly';
+      case 'empathy':
+        return 'Care about others';
+      case 'problem solving':
+        return 'Fix problems';
+      
+      // Emotions simplified descriptions
+      case 'happy':
+        return 'Happy face';
+      case 'sad':
+        return 'Sad face';
+      case 'angry':
+        return 'Mad face';
+      case 'scared':
+        return 'Afraid face';
+      case 'excited':
+        return 'Very happy face';
+      case 'proud':
+        return 'Feel good about me';
+      case 'surprised':
+        return 'Oh! face';
+      case 'confused':
+        return 'Don\'t understand';
+      case 'calm':
+        return 'Quiet and still';
+      case 'frustrated':
+        return 'Can\'t do it face';
+      
+      // Color Exploration simplified descriptions
+      case 'red':
+        return 'Red';
+      case 'blue':
+        return 'Blue';
+      case 'yellow':
+        return 'Yellow';
+      case 'green':
+        return 'Green';
+      case 'orange':
+        return 'Orange';
+      case 'purple':
+        return 'Purple';
+      case 'pink':
+        return 'Pink';
+      case 'brown':
+        return 'Brown';
+      case 'black':
+        return 'Black';
+      case 'white':
+        return 'White';
+      
+      // Lines and Patterns simplified descriptions
+      case 'straight line':
+        return '——';
+      case 'curved line':
+        return '~';
+      case 'zigzag':
+        return '/\\/\\';
+      case 'spiral':
+        return '@';
+      case 'circle pattern':
+        return 'OOO';
+      case 'checkered pattern':
+        return '▒▒';
+      case 'stripes':
+        return '|||';
+      case 'polka dots':
+        return '•••';
+      case 'symmetry':
+        return '◄►';
+      case 'repeating pattern':
+        return '□○□○';
+
+      // Fine Motor Skills simplified descriptions
+      case 'drawing':
+        return 'Drawing';
+      case 'cutting':
+        return 'Cutting';
+      case 'buttoning':
+        return 'Buttoning';
+      case 'beading':
+        return 'Beading';
+      case 'coloring':
+        return 'Coloring';
+      case 'folding':
+        return 'Folding';
+      case 'tracing':
+        return 'Tracing';
+      case 'zipping':
+        return 'Zipping';
+      case 'lacing':
+        return 'Lacing';
+      case 'playdough':
+        return 'Playdough';
+        
+      // Jawi Letters simplified descriptions
+      case 'alif':
+        return 'ا';
+      case 'ba':
+        return 'ب';
+      case 'ta':
+        return 'ت';
+      case 'tsa':
+        return 'ث';
+      case 'jim':
+        return 'ج';
+      case 'ha':
+        return 'ح';
+      case 'kha':
+        return 'خ';
+      case 'dal':
+        return 'د';
+      case 'dzal':
+        return 'ذ';
+      case 'ra':
+        return 'ر';
+        
+      // Jawi Simple Writing simplified descriptions
+      case 'saya':
+        return 'سايا';
+      case 'kamu':
+        return 'كامو';
+      case 'dia':
+        return 'دي';
+      case 'kita':
+        return 'كيت';
+      case 'ibu':
+        return 'ايبو';
+      case 'bapa':
+        return 'باڤ';
+      case 'makan':
+        return 'ماكن';
+      case 'minum':
+        return 'مينوم';
+      case 'sekolah':
+        return 'سكوله';
+      case 'rumah':
+        return 'روماه';
+        
+      // Basic Iqraa Reading simplified descriptions
+      case 'alif fathah':
+        return 'اَ';
+      case 'ba fathah':
+        return 'بَ';
+      case 'ta fathah':
+        return 'تَ';
+      case 'tha fathah':
+        return 'ثَ';
+      case 'jim fathah':
+        return 'جَ';
+      case 'ha fathah':
+        return 'حَ';
+      case 'kha fathah':
+        return 'خَ';
+      case 'dal fathah':
+        return 'دَ';
+      case 'dzal fathah':
+        return 'ذَ';
+      case 'ra fathah':
+        return 'رَ';
+        
       default:
         return title;
     }
@@ -131,6 +519,295 @@ class FlashcardTemplateGenerator {
   static String _createEnhancedDescription(String baseDescription, String title) {
     // For age 6, provide more detailed descriptions
     switch (title.toLowerCase()) {
+      // English alphabet enhanced descriptions
+      case 'apple':
+        return 'A is for Apple. Apples are crunchy fruits that grow on trees. They can be red, green, or yellow and are packed with vitamins.';
+      case 'ball':
+        return 'B is for Ball. Balls come in many sizes and colors. We use them for different sports like soccer, basketball, and tennis.';
+      case 'cat':
+        return 'C is for Cat. Cats are furry pets with whiskers. They like to purr when happy and can see well in the dark.';
+      case 'dog':
+        return 'D is for Dog. Dogs are loyal pets that come in many breeds. They can be trained to follow commands and help people.';
+      case 'elephant':
+        return 'E is for Elephant. Elephants are the largest land animals. They have long trunks to pick up food and water, and big ears to keep cool.';
+      case 'fish':
+        return 'F is for Fish. Fish live in water and breathe through gills. There are thousands of different types of fish in our oceans, rivers, and lakes.';
+      case 'goat':
+        return 'G is for Goat. Goats are farm animals that can climb very well. They give us milk which can be made into cheese.';
+      case 'house':
+        return 'H is for House. Houses are buildings where people live. They can be small or big, and have different rooms for eating, sleeping, and playing.';
+      case 'ice cream':
+        return 'I is for Ice Cream. Ice cream is a frozen dessert that comes in many flavors like chocolate, vanilla, and strawberry.';
+      case 'jacket':
+        return 'J is for Jacket. Jackets keep us warm when it\'s cold outside. They can be made of different materials like wool, cotton, or nylon.';
+      case 'kite':
+        return 'K is for Kite. Kites fly high in the sky when there\'s wind. They come in many colorful shapes and designs.';
+      case 'lion':
+        return 'L is for Lion. Lions are powerful wild cats known as the "king of the jungle". Male lions have a special mane of fur around their neck.';
+      case 'monkey':
+        return 'M is for Monkey. Monkeys are clever animals that can use their hands like humans. They can swing from tree to tree using their arms and tails.';
+      case 'nest':
+        return 'N is for Nest. Nests are homes that birds build to lay their eggs and raise their babies. They use twigs, leaves, and other materials.';
+      case 'orange':
+        return 'O is for Orange. Oranges are juicy citrus fruits full of vitamin C. They have a sweet taste and a bright orange color.';
+      case 'penguin':
+        return 'P is for Penguin. Penguins are birds that cannot fly but are excellent swimmers. They live in cold places like Antarctica.';
+      case 'queen':
+        return 'Q is for Queen. A queen rules a country or kingdom. In chess, the queen is the most powerful piece on the board.';
+      case 'rabbit':
+        return 'R is for Rabbit. Rabbits have long ears and hop around. They love to eat carrots and other vegetables.';
+      case 'sun':
+        return 'S is for Sun. The sun gives us light and heat during the day. It\'s a star at the center of our solar system.';
+      case 'turtle':
+        return 'T is for Turtle. Turtles move slowly and carry their homes on their backs. Some turtles live for more than 100 years!';
+      case 'umbrella':
+        return 'U is for Umbrella. Umbrellas keep us dry when it rains. They open up like a shield to protect us from water.';
+      case 'violin':
+        return 'V is for Violin. Violins are musical instruments with strings. Musicians use a bow to make beautiful sounds.';
+      case 'whale':
+        return 'W is for Whale. Whales are the largest animals in the ocean. They breathe air through blowholes on top of their heads.';
+      case 'xylophone':
+        return 'X is for Xylophone. Xylophones are musical instruments with colorful bars. You hit them with mallets to make different sounds.';
+      case 'yacht':
+        return 'Y is for Yacht. Yachts are special boats used for fun and travel on water. They can be very luxurious.';
+      case 'zebra':
+        return 'Z is for Zebra. Zebras have black and white stripes that make them unique. No two zebras have the same pattern of stripes!';
+        
+      // English sight words enhanced descriptions
+      case 'the':
+        return 'The word "the" is called a definite article. We use it to point to a specific thing. For example, "the book" means a particular book we are talking about.';
+      case 'and':
+        return 'The word "and" is used to join words or ideas together. For example, when we say "apples and oranges", we are talking about both fruits together.';
+      case 'a':
+        return 'The word "a" is called an indefinite article. We use it when talking about any one thing, not a specific one. For example, "a dog" could be any dog.';
+      case 'to':
+        return 'The word "to" helps show direction or purpose. We can say "I went to school" to show where we went, or "I want to learn" to show our purpose.';
+      case 'in':
+        return 'The word "in" tells us about position or location. When something is inside or within something else, we use "in". For example, "The toy is in the box".';
+      case 'is':
+        return 'The word "is" tells us about what something or someone is like or what they are doing right now. For example, "The sky is blue" or "She is singing".';
+      case 'you':
+        return 'The word "you" refers to the person we are speaking to. It\'s a way to directly address someone in a sentence, like when we say "You are my friend".';
+      case 'that':
+        return 'The word "that" helps us point to a specific thing or person that might be farther away. For example, "I like that book" or "That is my teacher".';
+      case 'it':
+        return 'The word "it" replaces the name of an object or animal when we\'ve already mentioned it. For example, "I have a ball. It is red."';
+      case 'he':
+        return 'The word "he" refers to a boy or man when we\'ve already mentioned him. For example, "This is Tom. He is my brother."';
+        
+      // Living and Non-living Things enhanced descriptions
+      case 'plants':
+        return 'Plants are living organisms that make their own food through photosynthesis. They need sunlight, water, air, and soil to grow.';
+      case 'animals':
+        return 'Animals are living organisms that need food, water and oxygen to survive. Unlike plants, animals cannot make their own food.';
+      case 'humans':
+        return 'Humans are special living beings who can think, talk, and create things. We have a body with parts like the head, arms, legs, and organs inside that help us live.';
+      case 'birds':
+        return 'Birds are living creatures with feathers, wings, and beaks. Most birds can fly, but some like penguins and ostriches cannot.';
+      case 'insects':
+        return 'Insects are small living creatures with six legs and three body parts: head, thorax, and abdomen. Most insects have wings and antennae to sense their environment.';
+      case 'fish':
+        return 'Fish are living creatures that live in water. They have scales on their bodies, fins to help them swim, and gills to breathe underwater.';
+      case 'rocks':
+        return 'Rocks are non-living things formed from minerals. They don\'t grow, eat, breathe or reproduce like living things do. Rocks can be different colors, shapes, and sizes.';
+      case 'water':
+        return 'Water is a non-living substance that has no fixed shape and takes the form of its container. It exists in three forms: liquid water, solid ice, and gaseous water vapor.';
+      case 'air':
+        return 'Air is a non-living mixture of gases that surrounds our Earth. We cannot see air, but we can feel it when the wind blows. Air is made up mostly of nitrogen and oxygen, plus small amounts of other gases.';
+      case 'toys':
+        return 'Toys are non-living objects made by humans for play and enjoyment. They can be made from different materials like plastic, wood, cloth, or metal. Toys don\'t grow, eat, or breathe like living things.';
+      case 'furniture':
+        return 'Furniture items are non-living objects made by people for functional purposes. Things like chairs, tables, beds, and cupboards are designed to make our homes and buildings useful and comfortable.';
+      case 'cloud':
+        return 'Clouds are non-living collections of tiny water droplets or ice crystals floating in the air. They form when warm air rises and cools, causing water vapor to condense.';
+      case 'sun':
+        return 'The Sun is a non-living star at the center of our solar system. It is a giant ball of hot gases, mainly hydrogen and helium. The Sun provides light and heat that makes life on Earth possible.';
+      case 'moon':
+        return 'The Moon is a non-living natural satellite that orbits around Earth. It doesn\'t produce its own light but reflects sunlight, which is why we can see it at night.';
+      case 'computer':
+        return 'A computer is a non-living electronic device designed by humans to process information. It can perform calculations, store data, and run programs to help us work, learn, and play.';
+      case 'car':
+        return 'A car is a non-living machine made by humans for transportation. Cars have wheels, engines, seats, and many other parts that work together. They need fuel or electricity to run but don\'t grow or reproduce like living things.';
+        
+      // Sharing and Cooperation enhanced descriptions
+      case 'taking turns':
+        return 'Taking turns means waiting patiently while someone else has a chance to speak or play, and then having your chance afterward. It\'s an important skill that shows respect for others. When we take turns, games and conversations are fair for everyone.';
+      case 'sharing toys':
+        return 'Sharing toys means letting others use or play with things that belong to you. When we share, we show generosity and kindness to others. Sharing helps create friendships and teaches us that joy can come from giving, not just receiving.';
+      case 'helping others':
+        return 'Helping others means offering assistance or support when someone needs it. We can help in many ways: by lending a hand with a difficult task, teaching someone a skill we know, or offering comfort when someone is sad.';
+      case 'listening':
+        return 'Listening is paying full attention when someone is speaking. Good listeners look at the speaker, think about what is being said, and ask questions to understand better. Listening is different from just hearing—it requires focus and respect.';
+      case 'being kind':
+        return 'Being kind means doing and saying things that are helpful, generous, and considerate of others\'s feelings. Kindness includes simple actions like sharing, using polite words like "please" and "thank you," including others in activities, and offering help.';
+      case 'teamwork':
+        return 'Teamwork means people working together toward a common goal. When we work as a team, we combine different strengths and ideas to solve problems better than we could alone. Good teamwork requires communication, compromise, and respecting each team member\'s contributions.';
+      case 'apologizing':
+        return 'Apologizing means saying "I\'m sorry" when we make a mistake or hurt someone\'s feelings. A sincere apology shows that we understand what we did wrong and care about the other person\'s feelings. After apologizing, we should try not to repeat the same mistake.';
+      case 'patience':
+        return 'Patience is the ability to stay calm and wait without getting frustrated or upset. We show patience when we wait for our turn, when something takes a long time, or when we\'re learning something new that\'s difficult.';
+      case 'empathy':
+        return 'Empathy means understanding and caring about how other people feel. It\'s like putting yourself in someone else\'s shoes to see things from their perspective. When someone is sad, happy, or scared, empathy helps us respond in a caring way.';
+      case 'problem solving':
+        return 'Problem solving is finding good solutions when things go wrong or when facing a challenge. It involves identifying what the problem is, thinking of possible solutions, trying them out, and seeing what works best.';
+        
+      // Emotions enhanced descriptions
+      case 'happy':
+        return 'Happiness is a positive emotion that makes us feel good inside. When we are happy, we often smile, laugh, and want to share our joy with others.';
+      case 'sad':
+        return 'Sadness is an emotion we feel when something disappointing or upsetting happens. When we are sad, we might cry or want to be alone.';
+      case 'angry':
+        return 'Anger is a strong emotion that we might feel when something seems unfair or when we\'re frustrated. When angry, our heart beats faster and we might want to yell or stomp.';
+      case 'scared':
+        return 'Fear is an emotion that helps protect us from danger. When we\'re scared, our bodies get ready to react quickly—our heart beats faster and we breathe more rapidly.';
+      case 'excited':
+        return 'Excitement is a happy, energetic feeling we get when we\'re looking forward to something special or experiencing something new.';
+      case 'proud':
+        return 'Pride is a good feeling we get when we accomplish something difficult or do something kind. When we feel proud, we stand taller and want to share our achievement.';
+      case 'surprised':
+        return 'Surprise is the feeling we get when something unexpected happens. Our eyes get big, our eyebrows go up, and sometimes we gasp or say "Wow!"';
+      case 'confused':
+        return 'Confusion happens when something doesn\'t make sense to us or when we don\'t understand what to do. When confused, we might wrinkle our forehead, tilt our head, or say "Huh?"';
+      case 'calm':
+        return 'Calmness is a peaceful, relaxed feeling where we\'re not too excited or upset. When calm, our breathing is slow and even, our muscles are relaxed, and our mind feels clear.';
+      case 'frustrated':
+        return 'Frustration is what we feel when we\'re trying to do something that\'s difficult or when we can\'t get what we want. It can make us feel hot, tense, or like giving up.';
+        
+      // Color Exploration enhanced descriptions
+      case 'red':
+        return 'Red is a primary color that can\'t be made by mixing other colors. It reminds us of things like fire trucks, strawberries, and stop signs. Red is often associated with strong feelings like excitement and passion.';
+      case 'blue':
+        return 'Blue is a primary color found abundantly in nature—in the sky and in bodies of water like oceans and lakes. Blue comes in many shades from light baby blue to deep navy. It often makes people feel calm and peaceful.';
+      case 'yellow':
+        return 'Yellow is a primary color associated with sunshine and happiness. It\'s one of the most visible colors and catches our attention quickly—that\'s why school buses and some warning signs are yellow.';
+      case 'green':
+        return 'Green is a secondary color made by mixing blue and yellow. It\'s the color most commonly found in plants due to chlorophyll, which helps plants make food from sunlight. Green often represents growth, nature, and environmental awareness.';
+      case 'orange':
+        return 'Orange is a secondary color created by mixing red and yellow. It\'s named after the fruit! Orange is energetic and warm like red but more friendly and approachable.';
+      case 'purple':
+        return 'Purple is a secondary color made by mixing red and blue. Historically, purple dye was very rare and expensive, so it became associated with royalty and wealth.';
+      case 'pink':
+        return 'Pink is created by mixing red and white. It\'s often described as a lighter version of red. Pink is associated with sweetness, kindness, and nurturing feelings.';
+      case 'brown':
+        return 'Brown is a composite color made by mixing red, yellow, and black, or by mixing complementary colors like blue and orange. Brown is abundant in nature—in soil, tree trunks, and many animal colors. It represents earthiness, reliability, and stability.';
+      case 'white':
+        return 'White is the presence of all visible light colors combined. White surfaces reflect all light rather than absorbing it, which is why white clothing feels cooler in the sunshine. White is associated with cleanliness, simplicity, and new beginnings.';
+        
+      // Lines and Patterns enhanced descriptions
+      case 'straight line':
+        return 'A straight line is the shortest path between two points. Straight lines don\'t bend or curve and continue in the same direction forever unless something stops them.';
+      case 'curved line':
+        return 'A curved line changes direction gradually and smoothly, like a gentle bend in a road. Curves don\'t have sharp corners or angles.';
+      case 'zigzag':
+        return 'A zigzag is a pattern made of connected straight lines that form sharp turns and angles, creating a series of peaks and valleys. Zigzags change direction suddenly and repeatedly.';
+      case 'spiral':
+        return 'A spiral is a curved line that winds around a center point, getting either closer to or farther from the center as it goes around.';
+      case 'circle pattern':
+        return 'A circle pattern uses repeated circles arranged in specific ways. Circles are perfect round shapes where every point on the edge is the same distance from the center.';
+      case 'checkered pattern':
+        return 'A checkered pattern is made of squares arranged in alternating colors, like a chess board or checkers game board. This pattern creates a grid where each square touches others on its sides.';
+      case 'stripes':
+        return 'Stripes are parallel lines of different colors or textures that create a repeated pattern. Stripes can be any width and can run in any direction, though horizontal and vertical stripes are most common.';
+      case 'polka dots':
+        return 'Polka dots are a pattern of equally sized circles arranged in a grid or scattered evenly across a background. The name comes from the polka dance that was popular when the pattern became fashionable.';
+      case 'symmetry':
+        return 'Symmetry occurs when one half of something mirrors the other half exactly. If you could fold it along a line (called the line of symmetry), the two sides would match perfectly.';
+      case 'repeating pattern':
+        return 'A repeating pattern is a design where the same elements occur over and over in a predictable way. The repeated unit is called a "motif." Repeating patterns can be simple, like stripes, or complex with many different elements that repeat together.';
+        
+      // Math Counting enhanced descriptions
+      case 'one':
+        return 'One is the first counting number. It represents a single item or unit. In mathematics, one is the multiplicative identity, which means that when you multiply any number by one, you get the same number. One is also important as a starting point for counting and measuring things.';
+      case 'two':
+        return 'Two is the number that comes after one. It represents a pair of items. Two is the only even prime number in mathematics. When we group things in twos, we call it "pairing." Our bodies have many parts that come in twos: two eyes, two ears, two arms, and two legs.';
+      case 'three':
+        return 'Three is the number that comes after two. Many important things come in threes: traffic lights have three colors, stories have a beginning, middle, and end, and triangles have three sides. Three is considered a special number in many cultures and appears in many fairy tales, like the three little pigs or three wishes.';
+      case 'four':
+        return 'Four is the number that comes after three. It\'s the first number that isn\'t prime because we can make it by multiplying 2×2. Four appears in many places: seasons of the year (spring, summer, fall, winter), directions (north, south, east, west), and a square has four sides and four corners.';
+      case 'five':
+        return 'Five is the number that comes after four. We have five fingers on each hand and five toes on each foot, which makes counting to five very natural for humans. A pentagon has five sides, and a star often has five points. Five is also half of ten, which is the base of our number system.';
+      case 'six':
+        return 'Six is the number that comes after five. It\'s the first "perfect number" in mathematics because its factors (1, 2, and 3) add up to six. Honeycomb cells have six sides, making a hexagon shape. Six is also the number of faces on a cube, which is the shape of dice used in many games.';
+      case 'seven':
+        return 'Seven is the number that comes after six. It appears in many important groupings: seven days in a week, seven colors in a rainbow (red, orange, yellow, green, blue, indigo, violet), and seven notes in a musical scale (do, re, mi, fa, sol, la, ti). Seven is considered a lucky number in many cultures.';
+      case 'eight':
+        return 'Eight is the number that comes after seven. It\'s a special number because it\'s 2×2×2, which makes it a cube number. When we write eight sideways, it looks like the infinity symbol (∞). An octagon has eight sides, and a spider has eight legs. In music, an octave has eight notes including the starting and ending notes.';
+      case 'nine':
+        return 'Nine is the number that comes after eight. It\'s the square of three (3×3=9). Nine is interesting because when you multiply it by any number and add the digits of the result together, you always get nine again! For example, 9×5=45, and 4+5=9. In baseball, there are nine players on each team and nine innings in a game.';
+      case 'ten':
+        return 'Ten is the number that comes after nine. Our number system is based on ten, which is called the decimal system, probably because we have ten fingers to count on. Ten is important for place value - when we count past nine, we start a new column. We have ten digits (0-9) that we use to write all numbers.';
+        
+      // Math Shapes enhanced descriptions
+      case 'circle':
+        return 'A circle is a perfectly round shape where every point on the edge is the same distance from the center point.';
+      case 'square':
+        return 'A square is a shape with four equal sides and four right angles (90 degrees). All sides are the same length.';
+      case 'triangle':
+        return 'A triangle has three sides and three angles. Triangles are very strong shapes used in buildings and bridges.';
+      case 'rectangle':
+        return 'A rectangle has four sides with four right angles. Opposite sides are equal in length.';
+      case 'oval':
+        return 'An oval is an elongated circle, shaped like an egg.';
+      case 'star':
+        return 'A star shape typically has five or more points extending from a center.';
+      case 'diamond':
+        return 'A diamond shape is a square turned 45 degrees, where all sides are equal but the angles aren\'t right angles.';
+      case 'heart':
+        return 'The heart shape represents love and caring.';
+      case 'pentagon':
+        return 'A pentagon has five sides and five angles.';
+      case 'hexagon':
+        return 'A hexagon has six sides and six angles.';
+        
+      // Science Five Senses enhanced descriptions
+      case 'sight':
+        return 'Sight, or vision, is the sense that lets us see the world through our eyes.';
+      case 'hearing':
+        return 'Hearing is the sense that allows us to detect sounds through our ears.';
+      case 'smell':
+        return 'Smell, or olfaction, is the sense that lets us detect chemicals in the air.';
+      case 'taste':
+        return 'Taste, or gustation, is the sense that allows us to detect flavors in food using our taste buds.';
+      case 'touch':
+        return 'Touch is the sense that lets us feel pressure, temperature, pain, and texture through our skin.';
+        
+      // Fine Motor Skills enhanced descriptions
+      case 'buttoning':
+        return 'Buttoning is pushing buttons through small holes to fasten clothes. This skill requires coordination between your fingers and eyes. Mastering buttoning helps children become more independent with dressing themselves.';
+      case 'beading':
+        return 'Beading is putting beads onto string or wire to make jewelry or decorations. It requires good hand-eye coordination and finger control to pick up and thread small beads. Beading helps develop patience and attention to detail.';
+      case 'coloring':
+        return 'Coloring is filling areas with colors using crayons, colored pencils, or markers. It helps develop control of hand movements and staying within lines. Coloring allows for creative expression through color choices and combinations.';
+      case 'folding':
+        return 'Folding is bending paper or fabric neatly along straight lines. Paper folding (origami) can create amazing shapes like animals or flowers. Folding requires attention to detail and helps develop spatial awareness.';
+      case 'tracing':
+        return 'Tracing is drawing over existing lines to copy a shape or letter. It helps learn how to form shapes and letters correctly. Tracing builds the muscle memory and precision needed for writing.';
+      case 'zipping':
+        return 'Zipping is closing a zipper by bringing together two rows of interlocking teeth. It requires coordination to hold the zipper pull and move it smoothly. This skill helps children become independent with dressing.';
+      case 'lacing':
+        return 'Lacing is threading string or shoelaces through holes in a pattern. This skill builds finger strength and coordination needed for tying shoelaces. Lacing activities include sewing cards and craft projects.';
+      case 'playdough':
+        return 'Playdough is soft clay that can be shaped with your fingers. You can squeeze, roll, flatten, and mold it into many different shapes. Playing with playdough strengthens the small muscles in fingers and hands.';
+        
+      // Gross Motor Skills enhanced descriptions
+      case 'running':
+        return 'Running is moving quickly on your feet, faster than walking. When you run, there are moments when both feet are off the ground. Running helps make your heart and lungs stronger.';
+      case 'jumping':
+        return 'Jumping is pushing off the ground with your feet and lifting your whole body into the air. You can jump up, forward, or over things. Jumping builds leg strength and coordination.';
+      case 'throwing':
+        return 'Throwing is using your arm to send an object through the air. When you throw, you use muscles in your fingers, hand, arm, shoulder, and even your legs for balance. Good throwing requires coordination and timing.';
+      case 'kicking':
+        return 'Kicking is using your foot to hit something, usually to make it move. Soccer players kick balls to score goals. Kicking uses leg muscles and requires good balance to stand on one foot.';
+      case 'climbing':
+        return 'Climbing is moving up using your hands and feet. You can climb stairs, ladders, playground equipment, or climbing walls. Climbing builds strength in your arms and legs.';
+      case 'hopping':
+        return 'Hopping is jumping on one foot. It requires good balance and leg strength. Hopping on one foot is more challenging than jumping with both feet. This skill helps develop coordination.';
+      case 'balancing':
+        return 'Balancing is keeping your body steady without falling. Walking on a balance beam or standing on one foot requires balance. Your inner ears help your brain know if you\'re balanced.';
+      case 'skipping':
+        return 'Skipping is moving forward by stepping with one foot and hopping on the other in a pattern. It\'s more advanced than walking or running. Skipping combines several movement skills together.';
+        
+      // Malay letters enhanced descriptions
       case 'ayam':
         return 'Ini ayam, ayam bunyi berkokok.';
       case 'bola':
@@ -163,8 +840,104 @@ class FlashcardTemplateGenerator {
         return 'Ini orang, orang hidup bersama.';
       case 'pokok':
         return 'Ini pokok, pokok memberi oksigen.';
+        
+      // Malay simple words enhanced descriptions
+      case 'saya':
+        return 'Ini saya, saya bermaksud diri sendiri. Kita gunakan perkataan ini untuk merujuk kepada diri kita.';
+      case 'kamu':
+        return 'Ini kamu, kamu bermaksud orang yang kita ajak berbual. Kita gunakan perkataan ini semasa bercakap dengan seseorang.';
+      case 'makan':
+        return 'Ini makan, makan adalah perbuatan memasukkan makanan ke dalam mulut dan mengunyahnya. Kita perlu makan untuk mendapat tenaga.';
+      case 'minum':
+        return 'Ini minum, minum adalah perbuatan memasukkan air atau cecair ke dalam mulut. Air sangat penting untuk kesihatan badan kita.';
+      case 'tidur':
+        return 'Ini tidur, tidur adalah masa untuk rehat dan memulihkan tenaga. Semasa tidur, badan dan otak kita berehat.';
+      case 'baca':
+        return 'Ini baca, baca adalah aktiviti melihat dan memahami perkataan dalam buku atau cerita. Membaca membantu kita belajar banyak perkara baru.';
+      case 'tulis':
+        return 'Ini tulis, tulis adalah aktiviti mencatat huruf dan perkataan di atas kertas menggunakan pensel atau pen. Menulis membantu kita berkongsi idea.';
+      case 'lari':
+        return 'Ini lari, lari adalah bergerak dengan kaki dengan cepat. Lari adalah senaman yang baik untuk kesihatan kita.';
+      case 'main':
+        return 'Ini main, main adalah aktiviti yang menyeronokkan untuk kanak-kanak. Bermain membantu kita belajar dan membina kemahiran baru.';
+      case 'suka':
+        return 'Ini suka, suka adalah rasa gembira terhadap sesuatu. Bila kita suka sesuatu, kita rasa bahagia dan gembira.';
+        
+      // Jawi Letters enhanced descriptions
+      case 'alif':
+        return 'Alif (ا) adalah huruf pertama dalam abjad Jawi. Ia tidak mempunyai titik dan ditulis seperti garisan menegak. Alif digunakan untuk menghasilkan bunyi vokal "a" dan merupakan asas untuk banyak perkataan dalam bahasa Melayu dan Arab.';
+      case 'ba':
+        return 'Ba (ب) adalah huruf kedua dalam abjad Jawi. Ia mempunyai satu titik di bawah dan menghasilkan bunyi "b". Ba digunakan dalam banyak perkataan seperti "buku", "baik" dan "bulan". Bentuknya seperti perahu terbalik dengan titik di bawah.';
+      case 'ta':
+        return 'Ta (ت) adalah huruf ketiga dalam abjad Jawi. Ia mempunyai dua titik di atas dan menghasilkan bunyi "t". Ta digunakan dalam perkataan seperti "taman", "topi" dan "telur". Bentuknya hampir sama seperti Ba tetapi mempunyai dua titik di atas.';
+      case 'tsa':
+        return 'Tsa (ث) adalah huruf keempat dalam abjad Jawi. Ia mempunyai tiga titik di atas dan menghasilkan bunyi "ts". Tsa jarang digunakan dalam perkataan Melayu tetapi lebih banyak dalam perkataan Arab. Bentuknya seperti Ta tetapi dengan tiga titik.';
+      case 'jim':
+        return 'Jim (ج) adalah huruf kelima dalam abjad Jawi. Ia mempunyai satu titik di bawah dan menghasilkan bunyi "j". Jim digunakan dalam perkataan seperti "jalan", "jemu" dan "jumpa". Ia mempunyai bentuk melengkung seperti mangkuk dengan titik di bawah.';
+      case 'ha':
+        return 'Ha (ح) adalah huruf keenam dalam abjad Jawi. Ia tidak mempunyai titik dan menghasilkan bunyi "h" yang dalam dari kerongkong. Ha digunakan dalam beberapa perkataan Arab dan Melayu. Bentuknya seperti loop yang tidak tertutup sepenuhnya.';
+      case 'kha':
+        return 'Kha (خ) adalah huruf ketujuh dalam abjad Jawi. Ia mempunyai satu titik di atas dan menghasilkan bunyi "kh". Kha digunakan dalam perkataan seperti "khabar" dan "khemah". Bentuknya seperti Ha tetapi mempunyai satu titik di atas.';
+      case 'dal':
+        return 'Dal (د) adalah huruf kelapan dalam abjad Jawi. Ia tidak mempunyai titik dan menghasilkan bunyi "d". Dal digunakan dalam perkataan seperti "dua", "datang" dan "duduk". Bentuknya seperti setengah bulatan dengan garisan menegak di sebelah kanan.';
+      case 'dzal':
+        return 'Dzal (ذ) adalah huruf kesembilan dalam abjad Jawi. Ia mempunyai satu titik di atas dan menghasilkan bunyi "dz". Dzal lebih banyak digunakan dalam perkataan Arab. Bentuknya seperti Dal tetapi mempunyai satu titik di atas.';
+      case 'ra':
+        return 'Ra (ر) adalah huruf kesepuluh dalam abjad Jawi. Ia tidak mempunyai titik dan menghasilkan bunyi "r". Ra digunakan dalam perkataan seperti "rumah", "rasa" dan "rambut". Bentuknya seperti garisan melengkung dengan ekor pendek di bawah.';
+        
+      // Jawi Simple Writing enhanced descriptions
+      case 'saya':
+        return '"Saya" dalam tulisan Jawi ditulis sebagai سايا (Sin-Alif-Ya-Alif). Ia adalah kata ganti nama diri pertama dalam bahasa Melayu yang bermaksud "I" dalam bahasa Inggeris. Perhatikan bagaimana huruf Sin di awal, diikuti oleh Alif, kemudian Ya dan Alif lagi di akhir.';
+      case 'kamu':
+        return '"Kamu" dalam tulisan Jawi ditulis sebagai كامو (Kaf-Alif-Mim-Wau). Ia adalah kata ganti nama diri kedua dalam bahasa Melayu yang bermaksud "you" dalam bahasa Inggeris. Perhatikan bentuk Kaf yang bersambung dengan Alif, kemudian Mim dan diakhiri dengan Wau.';
+      case 'dia':
+        return '"Dia" dalam tulisan Jawi ditulis sebagai دي (Dal-Ya). Ia adalah kata ganti nama diri ketiga dalam bahasa Melayu yang bermaksud "he/she" dalam bahasa Inggeris. Ini adalah contoh perkataan pendek yang hanya menggunakan dua huruf: Dal dan Ya.';
+      case 'kita':
+        return '"Kita" dalam tulisan Jawi ditulis sebagai كيت (Kaf-Ya-Ta). Ia adalah kata ganti nama diri pertama jamak dalam bahasa Melayu yang bermaksud "we" dalam bahasa Inggeris. Perhatikan bagaimana huruf Kaf bersambung dengan Ya dan diakhiri dengan Ta.';
+      case 'ibu':
+        return '"Ibu" dalam tulisan Jawi ditulis sebagai ايبو (Alif-Ya-Ba-Wau). Ia bermaksud "mother" dalam bahasa Inggeris dan merupakan salah satu perkataan pertama yang dipelajari oleh kanak-kanak. Perhatikan bahawa Alif tidak bersambung dengan huruf selepasnya.';
+      case 'bapa':
+        return '"Bapa" dalam tulisan Jawi ditulis sebagai باڤ (Ba-Alif-Pa). Ia bermaksud "father" dalam bahasa Inggeris. Perhatikan penggunaan huruf Pa (ڤ) yang mempunyai tiga titik di atas, huruf khas dalam tulisan Jawi untuk bunyi "p".';
+      case 'makan':
+        return '"Makan" dalam tulisan Jawi ditulis sebagai ماكن (Mim-Alif-Kaf-Nun). Ia adalah kata kerja yang bermaksud "eat" dalam bahasa Inggeris. Perhatikan bagaimana huruf Mim bersambung dengan Alif, kemudian Kaf dan diakhiri dengan Nun.';
+      case 'minum':
+        return '"Minum" dalam tulisan Jawi ditulis sebagai مينوم (Mim-Ya-Nun-Wau-Mim). Ia adalah kata kerja yang bermaksud "drink" dalam bahasa Inggeris. Ini contoh perkataan yang bermula dan berakhir dengan huruf yang sama - Mim.';
+      case 'sekolah':
+        return '"Sekolah" dalam tulisan Jawi ditulis sebagai سكوله (Sin-Kaf-Wau-Lam-Ha). Ia bermaksud "school" dalam bahasa Inggeris. Perhatikan bagaimana huruf Sin bersambung dengan Kaf, kemudian Wau (yang tidak bersambung dengan huruf selepasnya), Lam dan Ha.';
+      case 'rumah':
+        return '"Rumah" dalam tulisan Jawi ditulis sebagai روماه (Ra-Wau-Mim-Alif-Ha). Ia bermaksud "house" dalam bahasa Inggeris. Perhatikan bahawa Ra dan Wau tidak bersambung dengan huruf selepasnya, manakala Mim bersambung dengan Alif dan kemudian Ha.';
+        
+      // Basic Iqraa Reading enhanced descriptions
+      case 'alif fathah':
+        return 'Alif dengan baris atas (fathah) dibaca "a" seperti dalam perkataan "ada". Fathah adalah tanda baris berbentuk garisan miring di atas huruf. Apabila kita melihat Alif dengan fathah (اَ), kita menyebutnya dengan bunyi vokal "a" yang jelas dan pendek.';
+      case 'ba fathah':
+        return 'Ba dengan baris atas (fathah) dibaca "ba" seperti dalam perkataan "batu". Perhatikan titik di bawah huruf Ba yang membezakannya daripada huruf lain. Dengan fathah di atas (بَ), kita menggabungkan bunyi konsonan "b" dengan vokal "a".';
+      case 'ta fathah':
+        return 'Ta dengan baris atas (fathah) dibaca "ta" seperti dalam perkataan "tali". Perhatikan dua titik di atas huruf Ta yang membezakannya daripada huruf lain. Dengan fathah di atas (تَ), kita menggabungkan bunyi konsonan "t" dengan vokal "a".';
+      case 'tha fathah':
+        return 'Tha dengan baris atas (fathah) dibaca "tsa" seperti dalam perkataan Inggeris "think". Perhatikan tiga titik di atas huruf Tha. Dengan fathah di atas (ثَ), kita menggabungkan bunyi konsonan "ts" dengan vokal "a".';
+      case 'jim fathah':
+        return 'Jim dengan baris atas (fathah) dibaca "ja" seperti dalam perkataan "jalan". Perhatikan titik di tengah huruf Jim yang membezakannya daripada huruf lain. Dengan fathah di atas (جَ), kita menggabungkan bunyi konsonan "j" dengan vokal "a".';
+      case 'ha fathah':
+        return 'Ha dengan baris atas (fathah) dibaca "ha" dengan bunyi "h" yang dalam dari kerongkong. Perhatikan bentuk bulatan huruf Ha tanpa titik. Dengan fathah di atas (حَ), kita menggabungkan bunyi konsonan "h" dengan vokal "a".';
+      case 'kha fathah':
+        return 'Kha dengan baris atas (fathah) dibaca "kha" seperti dalam perkataan "khabar". Perhatikan satu titik di atas huruf Kha yang membezakannya daripada Ha. Dengan fathah di atas (خَ), kita menggabungkan bunyi konsonan "kh" dengan vokal "a".';
+      case 'dal fathah':
+        return 'Dal dengan baris atas (fathah) dibaca "da" seperti dalam perkataan "dadu". Perhatikan bentuk Dal yang tidak mempunyai titik. Dengan fathah di atas (دَ), kita menggabungkan bunyi konsonan "d" dengan vokal "a".';
+      case 'dzal fathah':
+        return 'Dzal dengan baris atas (fathah) dibaca "dza" seperti dalam perkataan Arab "dzahab" (emas). Perhatikan satu titik di atas huruf Dzal yang membezakannya daripada Dal. Dengan fathah di atas (ذَ), kita menggabungkan bunyi konsonan "dz" dengan vokal "a".';
+      case 'ra fathah':
+        return 'Ra dengan baris atas (fathah) dibaca "ra" seperti dalam perkataan "raja". Perhatikan bentuk Ra yang tidak mempunyai titik dengan ekor melengkung. Dengan fathah di atas (رَ), kita menggabungkan bunyi konsonan "r" dengan vokal "a".';
+        
       default:
-        return 'Ini $title, $title penting untuk dipelajari.';
+        // Language-specific defaults based on title
+        if (title.split(' ').any((word) => ['a', 'an', 'the', 'is', 'are', 'and', 'to', 'of', 'for', 'with'].contains(word.toLowerCase()))) {
+          // If title contains English words, use English format
+          return '$title is important to learn about. It helps us understand our world better.';
+        } else {
+          // Default to Malay format
+          return 'Ini $title, $title penting untuk dipelajari.';
+        }
     }
   }
   
@@ -2010,19 +2783,19 @@ class FlashcardTemplateGenerator {
         // Most detailed for age 6
         switch (title) {
           case 'Taking Turns':
-            description = 'Taking turns means everyone gets a fair chance to participate. It\'s an important part of playing games and having conversations. When we take turns, we show respect for others and learn patience.';
+            description = 'Taking turns means everyone gets a fair chance to participate. It\'s an important part of playing games and having conversations.';
             break;
           case 'Sharing Toys':
-            description = 'Sharing means letting others use things that belong to you. When we share our toys and materials, we build friendships and learn that giving can be as rewarding as receiving.';
+            description = 'Sharing means letting others use things that belong to you.';
             break;
           case 'Helping Others':
-            description = 'Helping others means offering assistance when someone needs it. We can help in many ways, like cleaning up together, explaining something, or offering comfort when someone is sad.';
+            description = 'Helping others means offering assistance when someone needs it.';
             break;
           case 'Listening':
-            description = 'Active listening means paying full attention when others speak. Good listeners look at the speaker, think about what is being said, and ask questions to understand better.';
+            description = 'Active listening means paying full attention when others speak.';
             break;
           case 'Being Kind':
-            description = 'Kindness means doing and saying things that make others feel good. Acts of kindness include using polite words, including others in activities, and showing appreciation for what others do.';
+            description = 'Kindness means doing and saying things that make others feel good.';
             break;
         }
       }

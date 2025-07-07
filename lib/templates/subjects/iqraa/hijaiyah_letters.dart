@@ -14,36 +14,144 @@ class HijaiyahLettersTemplate {
       instructions = 'Match the letter with its name.';
       difficulty = 'easy';
       pairs = [
-        {'word': 'Alif', 'emoji': 'ا', 'description': 'First letter', 'malay_word': 'Alif', 'arabic_word': 'ألف'},
-        {'word': 'Ba', 'emoji': 'ب', 'description': 'Second letter', 'malay_word': 'Ba', 'arabic_word': 'باء'},
-        {'word': 'Ta', 'emoji': 'ت', 'description': 'Third letter', 'malay_word': 'Ta', 'arabic_word': 'تاء'},
-        {'word': 'Jim', 'emoji': 'ج', 'description': 'Fifth letter', 'malay_word': 'Jim', 'arabic_word': 'جيم'},
+        {
+          'word': 'Alif', 'emoji': 'ا', 
+          'title': 'Alif', 'letter': 'ا',
+          'description': 'First letter', 
+          'malay_word': 'Alif', 'arabic_word': 'ألف',
+          'image_asset': 'assets/flashcards/hijaiyah/alif.png'
+        },
+        {
+          'word': 'Ba', 'emoji': 'ب', 
+          'title': 'Ba', 'letter': 'ب',
+          'description': 'Second letter', 
+          'malay_word': 'Ba', 'arabic_word': 'باء',
+          'image_asset': 'assets/flashcards/hijaiyah/ba.png'
+        },
+        {
+          'word': 'Ta', 'emoji': 'ت', 
+          'title': 'Ta', 'letter': 'ت',
+          'description': 'Third letter', 
+          'malay_word': 'Ta', 'arabic_word': 'تاء',
+          'image_asset': 'assets/flashcards/hijaiyah/ta.png'
+        },
+        {
+          'word': 'Jim', 'emoji': 'ج', 
+          'title': 'Jim', 'letter': 'ج',
+          'description': 'Fifth letter', 
+          'malay_word': 'Jim', 'arabic_word': 'جيم',
+          'image_asset': 'assets/flashcards/hijaiyah/jim.png'
+        },
       ];
     } else if (ageGroup == 5) {
       // Age 5: 6 letters with medium complexity
       instructions = 'Match the Hijaiyah letter with its name.';
       difficulty = 'medium';
       pairs = [
-        {'word': 'Alif', 'emoji': 'ا', 'description': 'First letter of the Hijaiyah alphabet', 'malay_word': 'Alif', 'arabic_word': 'ألف'},
-        {'word': 'Ba', 'emoji': 'ب', 'description': 'Second letter of the Hijaiyah alphabet', 'malay_word': 'Ba', 'arabic_word': 'باء'},
-        {'word': 'Ta', 'emoji': 'ت', 'description': 'Third letter of the Hijaiyah alphabet', 'malay_word': 'Ta', 'arabic_word': 'تاء'},
-        {'word': 'Jim', 'emoji': 'ج', 'description': 'Fifth letter of the Hijaiyah alphabet', 'malay_word': 'Jim', 'arabic_word': 'جيم'},
-        {'word': 'Ha', 'emoji': 'ح', 'description': 'Sixth letter of the Hijaiyah alphabet', 'malay_word': 'Ha', 'arabic_word': 'حاء'},
-        {'word': 'Dal', 'emoji': 'د', 'description': 'Eighth letter of the Hijaiyah alphabet', 'malay_word': 'Dal', 'arabic_word': 'دال'},
+        {
+          'word': 'Alif', 'emoji': 'ا', 
+          'title': 'Alif', 'letter': 'ا',
+          'description': 'First letter of the Hijaiyah alphabet', 
+          'malay_word': 'Alif', 'arabic_word': 'ألف',
+          'image_asset': 'assets/flashcards/hijaiyah/alif.png'
+        },
+        {
+          'word': 'Ba', 'emoji': 'ب', 
+          'title': 'Ba', 'letter': 'ب',
+          'description': 'Second letter of the Hijaiyah alphabet', 
+          'malay_word': 'Ba', 'arabic_word': 'باء',
+          'image_asset': 'assets/flashcards/hijaiyah/ba.png'
+        },
+        {
+          'word': 'Ta', 'emoji': 'ت', 
+          'title': 'Ta', 'letter': 'ت',
+          'description': 'Third letter of the Hijaiyah alphabet', 
+          'malay_word': 'Ta', 'arabic_word': 'تاء',
+          'image_asset': 'assets/flashcards/hijaiyah/ta.png'
+        },
+        {
+          'word': 'Jim', 'emoji': 'ج', 
+          'title': 'Jim', 'letter': 'ج',
+          'description': 'Fifth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Jim', 'arabic_word': 'جيم',
+          'image_asset': 'assets/flashcards/hijaiyah/jim.png'
+        },
+        {
+          'word': 'Ha', 'emoji': 'ح', 
+          'title': 'Ha', 'letter': 'ح',
+          'description': 'Sixth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Ha', 'arabic_word': 'حاء',
+          'image_asset': 'assets/flashcards/hijaiyah/ha.png'
+        },
+        {
+          'word': 'Dal', 'emoji': 'د', 
+          'title': 'Dal', 'letter': 'د',
+          'description': 'Eighth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Dal', 'arabic_word': 'دال',
+          'image_asset': 'assets/flashcards/hijaiyah/dal.png'
+        },
       ];
     } else {
       // Age 6: 8 letters with higher complexity
       instructions = 'Match the Hijaiyah letter with its name and position in the alphabet.';
       difficulty = 'hard';
       pairs = [
-        {'word': 'Alif', 'emoji': 'ا', 'description': 'First letter of the Hijaiyah alphabet', 'malay_word': 'Alif', 'arabic_word': 'ألف'},
-        {'word': 'Ba', 'emoji': 'ب', 'description': 'Second letter of the Hijaiyah alphabet', 'malay_word': 'Ba', 'arabic_word': 'باء'},
-        {'word': 'Ta', 'emoji': 'ت', 'description': 'Third letter of the Hijaiyah alphabet', 'malay_word': 'Ta', 'arabic_word': 'تاء'},
-        {'word': 'Tsa', 'emoji': 'ث', 'description': 'Fourth letter of the Hijaiyah alphabet', 'malay_word': 'Tsa', 'arabic_word': 'ثاء'},
-        {'word': 'Jim', 'emoji': 'ج', 'description': 'Fifth letter of the Hijaiyah alphabet', 'malay_word': 'Jim', 'arabic_word': 'جيم'},
-        {'word': 'Ha', 'emoji': 'ح', 'description': 'Sixth letter of the Hijaiyah alphabet', 'malay_word': 'Ha', 'arabic_word': 'حاء'},
-        {'word': 'Kha', 'emoji': 'خ', 'description': 'Seventh letter of the Hijaiyah alphabet', 'malay_word': 'Kha', 'arabic_word': 'خاء'},
-        {'word': 'Dal', 'emoji': 'د', 'description': 'Eighth letter of the Hijaiyah alphabet', 'malay_word': 'Dal', 'arabic_word': 'دال'},
+        {
+          'word': 'Alif', 'emoji': 'ا', 
+          'title': 'Alif', 'letter': 'ا',
+          'description': 'First letter of the Hijaiyah alphabet', 
+          'malay_word': 'Alif', 'arabic_word': 'ألف',
+          'image_asset': 'assets/flashcards/hijaiyah/alif.png'
+        },
+        {
+          'word': 'Ba', 'emoji': 'ب', 
+          'title': 'Ba', 'letter': 'ب',
+          'description': 'Second letter of the Hijaiyah alphabet', 
+          'malay_word': 'Ba', 'arabic_word': 'باء',
+          'image_asset': 'assets/flashcards/hijaiyah/ba.png'
+        },
+        {
+          'word': 'Ta', 'emoji': 'ت', 
+          'title': 'Ta', 'letter': 'ت',
+          'description': 'Third letter of the Hijaiyah alphabet', 
+          'malay_word': 'Ta', 'arabic_word': 'تاء',
+          'image_asset': 'assets/flashcards/hijaiyah/ta.png'
+        },
+        {
+          'word': 'Tsa', 'emoji': 'ث', 
+          'title': 'Tsa', 'letter': 'ث',
+          'description': 'Fourth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Tsa', 'arabic_word': 'ثاء',
+          'image_asset': 'assets/flashcards/hijaiyah/tsa.png'
+        },
+        {
+          'word': 'Jim', 'emoji': 'ج', 
+          'title': 'Jim', 'letter': 'ج',
+          'description': 'Fifth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Jim', 'arabic_word': 'جيم',
+          'image_asset': 'assets/flashcards/hijaiyah/jim.png'
+        },
+        {
+          'word': 'Ha', 'emoji': 'ح', 
+          'title': 'Ha', 'letter': 'ح',
+          'description': 'Sixth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Ha', 'arabic_word': 'حاء',
+          'image_asset': 'assets/flashcards/hijaiyah/ha.png'
+        },
+        {
+          'word': 'Kha', 'emoji': 'خ', 
+          'title': 'Kha', 'letter': 'خ',
+          'description': 'Seventh letter of the Hijaiyah alphabet', 
+          'malay_word': 'Kha', 'arabic_word': 'خاء',
+          'image_asset': 'assets/flashcards/hijaiyah/kha.png'
+        },
+        {
+          'word': 'Dal', 'emoji': 'د', 
+          'title': 'Dal', 'letter': 'د',
+          'description': 'Eighth letter of the Hijaiyah alphabet', 
+          'malay_word': 'Dal', 'arabic_word': 'دال',
+          'image_asset': 'assets/flashcards/hijaiyah/dal.png'
+        },
       ];
     }
     

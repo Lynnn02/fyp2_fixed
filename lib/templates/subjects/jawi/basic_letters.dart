@@ -14,36 +14,144 @@ class JawiBasicLettersTemplate {
       instructions = 'Match the Jawi letter with its name.';
       difficulty = 'easy';
       pairs = [
-        {'word': 'Alif', 'emoji': 'ا', 'description': 'First letter of the Jawi alphabet', 'malay_word': 'Alif'},
-        {'word': 'Ba', 'emoji': 'ب', 'description': 'Second letter of the Jawi alphabet', 'malay_word': 'Ba'},
-        {'word': 'Ta', 'emoji': 'ت', 'description': 'Third letter of the Jawi alphabet', 'malay_word': 'Ta'},
-        {'word': 'Jim', 'emoji': 'ج', 'description': 'Fifth letter of the Jawi alphabet', 'malay_word': 'Jim'},
+        {
+          'word': 'Alif', 'emoji': 'ا', 
+          'title': 'Alif', 'letter': 'ا',
+          'description': 'First letter of the Jawi alphabet', 
+          'malay_word': 'Alif',
+          'image_asset': 'assets/flashcards/jawi/alif.png'
+        },
+        {
+          'word': 'Ba', 'emoji': 'ب', 
+          'title': 'Ba', 'letter': 'ب',
+          'description': 'Second letter of the Jawi alphabet', 
+          'malay_word': 'Ba',
+          'image_asset': 'assets/flashcards/jawi/ba.png'
+        },
+        {
+          'word': 'Ta', 'emoji': 'ت', 
+          'title': 'Ta', 'letter': 'ت',
+          'description': 'Third letter of the Jawi alphabet', 
+          'malay_word': 'Ta',
+          'image_asset': 'assets/flashcards/jawi/ta.png'
+        },
+        {
+          'word': 'Jim', 'emoji': 'ج', 
+          'title': 'Jim', 'letter': 'ج',
+          'description': 'Fifth letter of the Jawi alphabet', 
+          'malay_word': 'Jim',
+          'image_asset': 'assets/flashcards/jawi/jim.png'
+        },
       ];
     } else if (ageGroup == 5) {
       // Age 5: 6 letters with medium complexity
       instructions = 'Match the Jawi letter with its name and position.';
       difficulty = 'medium';
       pairs = [
-        {'word': 'Alif', 'emoji': 'ا', 'description': 'First letter of the Jawi alphabet', 'malay_word': 'Alif'},
-        {'word': 'Ba', 'emoji': 'ب', 'description': 'Second letter of the Jawi alphabet', 'malay_word': 'Ba'},
-        {'word': 'Ta', 'emoji': 'ت', 'description': 'Third letter of the Jawi alphabet', 'malay_word': 'Ta'},
-        {'word': 'Jim', 'emoji': 'ج', 'description': 'Fifth letter of the Jawi alphabet', 'malay_word': 'Jim'},
-        {'word': 'Dal', 'emoji': 'د', 'description': 'Eighth letter of the Jawi alphabet', 'malay_word': 'Dal'},
-        {'word': 'Ra', 'emoji': 'ر', 'description': 'Tenth letter of the Jawi alphabet', 'malay_word': 'Ra'},
+        {
+          'word': 'Alif', 'emoji': 'ا', 
+          'title': 'Alif', 'letter': 'ا',
+          'description': 'First letter of the Jawi alphabet', 
+          'malay_word': 'Alif',
+          'image_asset': 'assets/flashcards/jawi/alif.png'
+        },
+        {
+          'word': 'Ba', 'emoji': 'ب', 
+          'title': 'Ba', 'letter': 'ب',
+          'description': 'Second letter of the Jawi alphabet', 
+          'malay_word': 'Ba',
+          'image_asset': 'assets/flashcards/jawi/ba.png'
+        },
+        {
+          'word': 'Ta', 'emoji': 'ت', 
+          'title': 'Ta', 'letter': 'ت',
+          'description': 'Third letter of the Jawi alphabet', 
+          'malay_word': 'Ta',
+          'image_asset': 'assets/flashcards/jawi/ta.png'
+        },
+        {
+          'word': 'Jim', 'emoji': 'ج', 
+          'title': 'Jim', 'letter': 'ج',
+          'description': 'Fifth letter of the Jawi alphabet', 
+          'malay_word': 'Jim',
+          'image_asset': 'assets/flashcards/jawi/jim.png'
+        },
+        {
+          'word': 'Dal', 'emoji': 'د', 
+          'title': 'Dal', 'letter': 'د',
+          'description': 'Eighth letter of the Jawi alphabet', 
+          'malay_word': 'Dal',
+          'image_asset': 'assets/flashcards/jawi/dal.png'
+        },
+        {
+          'word': 'Ra', 'emoji': 'ر', 
+          'title': 'Ra', 'letter': 'ر',
+          'description': 'Tenth letter of the Jawi alphabet', 
+          'malay_word': 'Ra',
+          'image_asset': 'assets/flashcards/jawi/ra.png'
+        },
       ];
     } else {
       // Age 6: 8 letters with higher complexity
       instructions = 'Match the Jawi letter with its name and position in the alphabet.';
       difficulty = 'hard';
       pairs = [
-        {'word': 'Alif', 'emoji': 'ا', 'description': 'First letter of the Jawi alphabet', 'malay_word': 'Alif'},
-        {'word': 'Ba', 'emoji': 'ب', 'description': 'Second letter of the Jawi alphabet', 'malay_word': 'Ba'},
-        {'word': 'Ta', 'emoji': 'ت', 'description': 'Third letter of the Jawi alphabet', 'malay_word': 'Ta'},
-        {'word': 'Jim', 'emoji': 'ج', 'description': 'Fifth letter of the Jawi alphabet', 'malay_word': 'Jim'},
-        {'word': 'Dal', 'emoji': 'د', 'description': 'Eighth letter of the Jawi alphabet', 'malay_word': 'Dal'},
-        {'word': 'Ra', 'emoji': 'ر', 'description': 'Tenth letter of the Jawi alphabet', 'malay_word': 'Ra'},
-        {'word': 'Sin', 'emoji': 'س', 'description': 'Twelfth letter of the Jawi alphabet', 'malay_word': 'Sin'},
-        {'word': 'Mim', 'emoji': 'م', 'description': 'Twenty-fourth letter of the Jawi alphabet', 'malay_word': 'Mim'},
+        {
+          'word': 'Alif', 'emoji': 'ا', 
+          'title': 'Alif', 'letter': 'ا',
+          'description': 'First letter of the Jawi alphabet', 
+          'malay_word': 'Alif',
+          'image_asset': 'assets/flashcards/jawi/alif.png'
+        },
+        {
+          'word': 'Ba', 'emoji': 'ب', 
+          'title': 'Ba', 'letter': 'ب',
+          'description': 'Second letter of the Jawi alphabet', 
+          'malay_word': 'Ba',
+          'image_asset': 'assets/flashcards/jawi/ba.png'
+        },
+        {
+          'word': 'Ta', 'emoji': 'ت', 
+          'title': 'Ta', 'letter': 'ت',
+          'description': 'Third letter of the Jawi alphabet', 
+          'malay_word': 'Ta',
+          'image_asset': 'assets/flashcards/jawi/ta.png'
+        },
+        {
+          'word': 'Jim', 'emoji': 'ج', 
+          'title': 'Jim', 'letter': 'ج',
+          'description': 'Fifth letter of the Jawi alphabet', 
+          'malay_word': 'Jim',
+          'image_asset': 'assets/flashcards/jawi/jim.png'
+        },
+        {
+          'word': 'Dal', 'emoji': 'د', 
+          'title': 'Dal', 'letter': 'د',
+          'description': 'Eighth letter of the Jawi alphabet', 
+          'malay_word': 'Dal',
+          'image_asset': 'assets/flashcards/jawi/dal.png'
+        },
+        {
+          'word': 'Ra', 'emoji': 'ر', 
+          'title': 'Ra', 'letter': 'ر',
+          'description': 'Tenth letter of the Jawi alphabet', 
+          'malay_word': 'Ra',
+          'image_asset': 'assets/flashcards/jawi/ra.png'
+        },
+        {
+          'word': 'Sin', 'emoji': 'س', 
+          'title': 'Sin', 'letter': 'س',
+          'description': 'Twelfth letter of the Jawi alphabet', 
+          'malay_word': 'Sin',
+          'image_asset': 'assets/flashcards/jawi/sin.png'
+        },
+        {
+          'word': 'Mim', 'emoji': 'م', 
+          'title': 'Mim', 'letter': 'م',
+          'description': 'Twenty-fourth letter of the Jawi alphabet', 
+          'malay_word': 'Mim',
+          'image_asset': 'assets/flashcards/jawi/mim.png'
+        },
       ];
     }
     

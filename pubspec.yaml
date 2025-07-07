@@ -58,9 +58,30 @@ flutter:
     - assets/google_logo.png
     - assets/sounds/click.mp3
     - assets/sounds/success.mp3
-    - assets/flashcards/
-    - assets/flashcards/malay/
     - assets/sounds/error.mp3
     - assets/sounds/completion.mp3
     - assets/sounds/page_turn.mp3
+    # Main flashcards directory
+    - assets/flashcards/
+    # Bahasa Malaysia
+    - assets/flashcards/malay/
+    # English
+    - assets/flashcards/english/
+    # Math
+    - assets/flashcards/math/
+    # Science
+    - assets/flashcards/science/
+    # Social & Emotional Learning
+    - assets/flashcards/emotions/
+    - assets/flashcards/social/
+    # Art & Craft
+    - assets/flashcards/colors/
+    - assets/flashcards/patterns/
+    # Physical Development
+    - assets/flashcards/motor/
+    # Jawi
+    - assets/flashcards/jawi/
+    # Iqraa (Arabic)
+    - assets/flashcards/hijaiyah/
+    - assets/flashcards/iqraa/
     
